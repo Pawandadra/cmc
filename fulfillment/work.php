@@ -260,7 +260,7 @@ $fulfillmentJs = cmc_url('assets/js/fulfillment-lines.js');
                     </label>
                     <label class="field" style="min-width:120px;">
                         <span class="field-label">Quantity</span>
-                        <input class="input" type="number" name="line_qty[]" step="any" min="0.000001" placeholder="Qty">
+                        <input class="input" type="number" name="line_qty[]" step="any" min="0" placeholder="Qty">
                     </label>
                     <button type="button" class="btn btn-ghost btn-sm remove-fulfillment-line" style="margin-bottom:0.15rem;">Remove</button>
                 </div>
