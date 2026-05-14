@@ -73,3 +73,86 @@ function cmc_user_count(): int
 {
     return (int) cmc_db()->query('SELECT COUNT(*) FROM users')->fetchColumn();
 }
+
+/** @return string|null error message, or null if password meets policy */
+function cmc_password_policy_error(string $password): ?string
+{
+    if (strlen($password) < 10) {
+        return 'Password must be at least 10 characters.';
+    }
+
+    return null;
+}
+
+/**
+ * @return string|null error message, or null on success
+ */
+function cmc_user_change_own_password(
+    PDO $pdo,
+    int $userId,
+    string $currentPassword,
+    string $newPassword,
+    string $newPasswordConfirm
+): ?string {
+    if ($newPassword !== $newPasswordConfirm) {
+        return 'New password and confirmation do not match.';
+    }
+    $policy = cmc_password_policy_error($newPassword);
+    if ($policy !== null) {
+        return $policy;
+    }
+
+    $st = $pdo->prepare('SELECT password_hash FROM users WHERE id = ?');
+    $st->execute([$userId]);
+    $hash = $st->fetchColumn();
+    if (!is_string($hash) || $hash === '') {
+        return 'Account not found.';
+    }
+    if (!password_verify($currentPassword, $hash)) {
+        return 'Current password is incorrect.';
+    }
+    if (password_verify($newPassword, $hash)) {
+        return 'Choose a password that is different from your current one.';
+    }
+
+    $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+    $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$newHash, $userId]);
+    if ((int) $pdo->query('SELECT changes()')->fetchColumn() !== 1) {
+        return 'Could not update password.';
+    }
+
+    return null;
+}
+
+/**
+ * Admin sets a user's password (no current password). Caller must enforce admin-only access.
+ *
+ * @return string|null error message, or null on success
+ */
+function cmc_admin_set_user_password(PDO $pdo, int $targetUserId, string $newPassword, string $newPasswordConfirm): ?string
+{
+    if ($targetUserId < 1) {
+        return 'Invalid user.';
+    }
+    if ($newPassword !== $newPasswordConfirm) {
+        return 'Password and confirmation do not match.';
+    }
+    $policy = cmc_password_policy_error($newPassword);
+    if ($policy !== null) {
+        return $policy;
+    }
+
+    $ex = $pdo->prepare('SELECT 1 FROM users WHERE id = ?');
+    $ex->execute([$targetUserId]);
+    if (!$ex->fetch()) {
+        return 'User not found.';
+    }
+
+    $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+    $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([$newHash, $targetUserId]);
+    if ((int) $pdo->query('SELECT changes()')->fetchColumn() !== 1) {
+        return 'Could not update password.';
+    }
+
+    return null;
+}

@@ -28,6 +28,7 @@ function cmc_layout_start(string $title, array $user, ?array $navExtra = null): 
             <div class="brand"><span class="brand-mark"></span><span><?= $app ?></span></div>
             <nav class="nav">
                 <a class="nav-item" href="<?= e(cmc_url('dashboard.php')) ?>">Dashboard</a>
+                <a class="nav-item" href="<?= e(cmc_url('account/password.php')) ?>">Change password</a>
                 <?php if (in_array($user['role'], ['member', 'hod', 'sde', 'admin'], true)) : ?>
                     <div class="nav-group-label">Complaints</div>
                     <?php if (in_array($user['role'], ['member', 'hod'], true)) : ?>
