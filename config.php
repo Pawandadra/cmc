@@ -10,8 +10,8 @@ $cmcConfig = [
     'base_path' => __DIR__,
     'db_path' => __DIR__ . '/data/app.sqlite',
     'session_name' => 'cmc_sess',
-    /** No trailing slash; set when app lives in a subfolder, e.g. /cmc */
-    'base_url' => '',
+    /** No trailing slash; optional override (e.g. /cmc). If empty, prefix is inferred from SCRIPT_NAME when the app runs in a subfolder. */
+    'base_url' => '/cmc',
     /** Total upload size cap per complaint (bytes). Individual files capped in code. */
     'complaint_max_upload_bytes' => 40 * 1024 * 1024,
     /** Max single file size (bytes) */

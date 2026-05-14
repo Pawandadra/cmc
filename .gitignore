@@ -1,5 +1,36 @@
+# SQLite DB and journal (runtime)
 /data/*.sqlite
 /data/*.sqlite-journal
+/data/*.sqlite-wal
+/data/*.sqlite-shm
+
+# Uploaded complaint files (keep directory + .htaccess)
 /data/uploads/*
 !/data/uploads/.htaccess
+
+# Local overrides (base_url, paths, etc.)
 /config.local.php
+
+# Composer (if added later)
+/vendor/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs & caches
+*.log
+.phpunit.result.cache
+.php_cs.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors / IDEs
+.idea/
+*.swp
+*.swo
+*~
+nginx.conf
