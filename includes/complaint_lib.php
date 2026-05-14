@@ -159,6 +159,149 @@ function cmc_complaint_upload_base(): string
     return $base . '/data/uploads';
 }
 
+function cmc_complaint_delete_upload_directory(int $complaintId): void
+{
+    if ($complaintId < 1) {
+        return;
+    }
+    $dir = cmc_complaint_upload_base() . '/c' . $complaintId;
+    if (!is_dir($dir)) {
+        return;
+    }
+    try {
+        $it = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $file) {
+            $path = $file->getPathname();
+            if ($file->isDir()) {
+                @rmdir($path);
+            } else {
+                @unlink($path);
+            }
+        }
+        @rmdir($dir);
+    } catch (Throwable $e) {
+        // Best-effort cleanup; DB row is already gone.
+    }
+}
+
+/**
+ * Remove a complaint row and dependent DB rows. Caller must wrap in a transaction.
+ * Deletes internal bills tied to fulfillments first (FK RESTRICT), then the complaint (CASCADE).
+ *
+ * @return string|null error message, or null on success
+ */
+function cmc_complaint_admin_delete_in_transaction(PDO $pdo, int $complaintId): ?string
+{
+    if ($complaintId < 1) {
+        return 'Invalid complaint.';
+    }
+    $ex = $pdo->prepare('SELECT 1 FROM complaints WHERE id = ?');
+    $ex->execute([$complaintId]);
+    if (!$ex->fetch()) {
+        return 'Complaint not found.';
+    }
+
+    $hasBillsTable = (bool) $pdo->query(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'internal_bills' LIMIT 1"
+    )->fetchColumn();
+
+    $st = $pdo->prepare('SELECT id FROM complaint_fulfillments WHERE complaint_id = ?');
+    $st->execute([$complaintId]);
+    /** @var list<int> $fids */
+    $fids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+
+    if ($fids !== [] && $hasBillsTable) {
+        $ph = implode(',', array_fill(0, count($fids), '?'));
+        $pdo->prepare("DELETE FROM internal_bills WHERE fulfillment_id IN ($ph)")->execute($fids);
+    }
+
+    $del = $pdo->prepare('DELETE FROM complaints WHERE id = ?');
+    $del->execute([$complaintId]);
+    $n = (int) $pdo->query('SELECT changes()')->fetchColumn();
+    if ($n !== 1) {
+        return 'Complaint could not be removed.';
+    }
+
+    return null;
+}
+
+/** @return string|null error message, or null on success */
+function cmc_complaint_admin_delete(PDO $pdo, int $complaintId): ?string
+{
+    $pdo->beginTransaction();
+    try {
+        $err = cmc_complaint_admin_delete_in_transaction($pdo, $complaintId);
+        if ($err !== null) {
+            $pdo->rollBack();
+
+            return $err;
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return 'Could not delete complaint.';
+    }
+
+    cmc_complaint_delete_upload_directory($complaintId);
+
+    return null;
+}
+
+/**
+ * @param list<mixed> $ids
+ * @return array{deleted: int, error: string|null}
+ */
+function cmc_complaint_admin_bulk_delete(PDO $pdo, array $ids): array
+{
+    /** @var list<int> $unique */
+    $unique = [];
+    foreach ($ids as $v) {
+        $n = (int) $v;
+        if ($n > 0) {
+            $unique[$n] = $n;
+        }
+    }
+    $unique = array_values($unique);
+    if ($unique === []) {
+        return ['deleted' => 0, 'error' => 'No complaints selected.'];
+    }
+    if (count($unique) > 200) {
+        return ['deleted' => 0, 'error' => 'Too many complaints (maximum 200 per request).'];
+    }
+
+    $pdo->beginTransaction();
+    try {
+        foreach ($unique as $id) {
+            $err = cmc_complaint_admin_delete_in_transaction($pdo, $id);
+            if ($err !== null) {
+                throw new RuntimeException($err);
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+
+        return [
+            'deleted' => 0,
+            'error' => $e instanceof RuntimeException ? $e->getMessage() : 'Could not delete complaints.',
+        ];
+    }
+
+    foreach ($unique as $id) {
+        cmc_complaint_delete_upload_directory($id);
+    }
+
+    return ['deleted' => count($unique), 'error' => null];
+}
+
 /**
  * @param array<string, mixed> $u current user
  * @return array{0: string|null, 1: int} [error or null, new complaint id]

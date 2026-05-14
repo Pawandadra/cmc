@@ -44,6 +44,7 @@ function cmc_layout_start(string $title, array $user, ?array $navExtra = null): 
                 <?php endif; ?>
                 <?php if ($user['role'] === 'admin') : ?>
                     <div class="nav-group-label">Administration</div>
+                    <a class="nav-item" href="<?= e(cmc_url('admin/complaints.php')) ?>">Complaints</a>
                     <a class="nav-item" href="<?= e(cmc_url('admin/organisations.php')) ?>">Organisations</a>
                     <a class="nav-item" href="<?= e(cmc_url('admin/departments.php')) ?>">Departments</a>
                     <a class="nav-item" href="<?= e(cmc_url('admin/users.php')) ?>">Users</a>
