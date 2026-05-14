@@ -33,7 +33,9 @@ function cmc_layout_start(string $title, array $user, ?array $navExtra = null): 
                     <?php if (in_array($user['role'], ['member', 'hod'], true)) : ?>
                         <a class="nav-item" href="<?= e(cmc_url('complaints/create.php')) ?>">Raise complaint</a>
                     <?php endif; ?>
-                    <a class="nav-item" href="<?= e(cmc_url('complaints/index.php')) ?>">Complaint list</a>
+                    <a class="nav-item" href="<?= e(cmc_url('complaints/index.php')) ?>">Complaints
+                        
+                    </a>
                 <?php endif; ?>
                 <?php if ($user['role'] === 'sde') : ?>
                     <div class="nav-group-label">Approved complaints</div>
@@ -44,7 +46,6 @@ function cmc_layout_start(string $title, array $user, ?array $navExtra = null): 
                 <?php endif; ?>
                 <?php if ($user['role'] === 'admin') : ?>
                     <div class="nav-group-label">Administration</div>
-                    <a class="nav-item" href="<?= e(cmc_url('admin/complaints.php')) ?>">Complaints</a>
                     <a class="nav-item" href="<?= e(cmc_url('admin/organisations.php')) ?>">Organisations</a>
                     <a class="nav-item" href="<?= e(cmc_url('admin/departments.php')) ?>">Departments</a>
                     <a class="nav-item" href="<?= e(cmc_url('admin/users.php')) ?>">Users</a>

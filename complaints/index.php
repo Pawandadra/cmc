@@ -7,6 +7,49 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 $user = cmc_require_login();
 $pdo = cmc_db();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user['role'] === 'admin') {
+    cmc_csrf_validate();
+    $action = (string) ($_POST['action'] ?? '');
+    $keep = [];
+    foreach (['q', 'status', 'org_id', 'dept_id'] as $k) {
+        if (!isset($_GET[$k]) || $_GET[$k] === '' || $_GET[$k] === null) {
+            continue;
+        }
+        $keep[$k] = $_GET[$k];
+    }
+    $redirPath = 'complaints/index.php' . ($keep !== [] ? '?' . http_build_query($keep) : '');
+
+    if ($action === 'delete') {
+        $id = (int) ($_POST['id'] ?? 0);
+        if ($id < 1) {
+            cmc_flash_set('error', 'Invalid complaint.');
+        } else {
+            $err = cmc_complaint_admin_delete($pdo, $id);
+            if ($err !== null) {
+                cmc_flash_set('error', $err);
+            } else {
+                cmc_flash_set('success', 'Complaint deleted.');
+            }
+        }
+        cmc_redirect($redirPath);
+    }
+    if ($action === 'bulk_delete') {
+        $ids = $_POST['ids'] ?? [];
+        if (!is_array($ids)) {
+            $ids = [];
+        }
+        $result = cmc_complaint_admin_bulk_delete($pdo, $ids);
+        if ($result['error'] !== null) {
+            cmc_flash_set('error', $result['error']);
+        } else {
+            cmc_flash_set('success', 'Deleted ' . $result['deleted'] . ' complaint(s).');
+        }
+        cmc_redirect($redirPath);
+    }
+    cmc_flash_set('error', 'Unknown action.');
+    cmc_redirect($redirPath);
+}
+
 $q = trim((string) ($_GET['q'] ?? ''));
 $statusFilter = trim((string) ($_GET['status'] ?? ''));
 $orgFilter = isset($_GET['org_id']) ? (int) $_GET['org_id'] : 0;
@@ -115,6 +158,21 @@ if (in_array($user['role'], ['admin', 'sde'], true)) {
 $listUrl = cmc_url('complaints/index.php');
 $hasFilters = $q !== '' || $statusFilter !== '' || $orgFilter > 0 || $deptFilter > 0;
 
+$listQueryParams = [];
+if ($q !== '') {
+    $listQueryParams['q'] = $q;
+}
+if ($statusFilter !== '') {
+    $listQueryParams['status'] = $statusFilter;
+}
+if ($orgFilter > 0) {
+    $listQueryParams['org_id'] = $orgFilter;
+}
+if ($deptFilter > 0) {
+    $listQueryParams['dept_id'] = $deptFilter;
+}
+$listUrlWithQuery = $listUrl . ($listQueryParams !== [] ? '?' . http_build_query($listQueryParams) : '');
+
 cmc_layout_start($heading, $user);
 ?>
 <?php if (in_array($user['role'], ['member', 'hod'], true)) : ?>
@@ -197,10 +255,27 @@ cmc_layout_start($heading, $user);
     </script>
 <?php endif; ?>
 
+<?php if ($user['role'] === 'admin') : ?>
+    <p class="muted small" style="margin-bottom: 0.75rem;">As an administrator you can permanently delete complaints (including timeline, attachments, fulfillment, and linked bills). This cannot be undone.</p>
+    <form method="post" action="<?= e($listUrlWithQuery) ?>" id="bulk-delete-form" class="card card-form" style="margin-bottom: 1rem;" data-confirm="Delete all selected complaints? This cannot be undone.">
+        <?= cmc_csrf_field() ?>
+        <input type="hidden" name="action" value="bulk_delete">
+        <div class="form-row" style="align-items: center; gap: 0.75rem;">
+            <button class="btn btn-danger" type="submit">Delete selected</button>
+            <span class="muted small">Select rows below, then confirm.</span>
+        </div>
+    </form>
+<?php endif; ?>
+
 <div class="table-wrap card">
     <table class="table">
         <thead>
             <tr>
+                <?php if ($user['role'] === 'admin') : ?>
+                    <th style="width: 2.5rem;">
+                        <input type="checkbox" id="complaint-select-all" title="Select all" aria-label="Select all">
+                    </th>
+                <?php endif; ?>
                 <th>Complaint ID</th>
                 <th>Subject</th>
                 <th>Raised by</th>
@@ -219,6 +294,11 @@ cmc_layout_start($heading, $user);
             <?php else : ?>
                 <?php foreach ($rows as $r) : ?>
                     <tr>
+                        <?php if ($user['role'] === 'admin') : ?>
+                            <td>
+                                <input type="checkbox" name="ids[]" value="<?= (int) $r['id'] ?>" form="bulk-delete-form" aria-label="Select complaint">
+                            </td>
+                        <?php endif; ?>
                         <td class="muted"><code><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
                         <td><?= e((string) $r['subject']) ?></td>
                         <td>
@@ -235,6 +315,14 @@ cmc_layout_start($heading, $user);
                         <td class="muted"><?= e((string) $r['updated_at']) ?></td>
                         <td class="td-actions">
                             <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/view.php?' . (trim((string) ($r['reference_code'] ?? '')) !== '' ? 'ref=' . rawurlencode((string) $r['reference_code']) : 'id=' . (int) $r['id']))) ?>">Open</a>
+                            <?php if ($user['role'] === 'admin') : ?>
+                                <form method="post" action="<?= e($listUrlWithQuery) ?>" class="inline-form" data-confirm="Permanently delete this complaint and all related records?">
+                                    <?= cmc_csrf_field() ?>
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
+                                    <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                                </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -242,5 +330,18 @@ cmc_layout_start($heading, $user);
         </tbody>
     </table>
 </div>
+<?php if ($user['role'] === 'admin') : ?>
+    <script>
+    (function () {
+        var all = document.getElementById('complaint-select-all');
+        if (!all) return;
+        all.addEventListener('change', function () {
+            document.querySelectorAll('input[name="ids[]"]').forEach(function (cb) {
+                cb.checked = all.checked;
+            });
+        });
+    })();
+    </script>
+<?php endif; ?>
 <?php
 cmc_layout_end();
