@@ -216,7 +216,7 @@ cmc_layout_start('Resource #' . $id, $user);
         <div class="form-row">
             <label class="field grow">
                 <span class="field-label">Change (+ or −)</span>
-                <input class="input" type="number" name="quantity_delta" value="0" step="any" inputmode="decimal" autocomplete="off" required>
+                <input class="input" type="number" name="quantity_delta" value="0" step="1" inputmode="numeric" autocomplete="off" required>
             </label>
             <label class="field grow">
                 <span class="field-label">Note (optional)</span>

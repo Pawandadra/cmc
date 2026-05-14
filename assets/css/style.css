@@ -478,6 +478,47 @@ body {
     margin: 0;
 }
 
+/* Sortable table headers (client-side; assets/js/app.js) */
+.table thead th.th-sortable {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 1.65rem;
+    color: var(--text);
+}
+
+.table thead th.th-sortable:hover {
+    background: #eef2f7;
+}
+
+.table thead th.th-sortable:focus-visible {
+    outline: none;
+    box-shadow: inset 0 0 0 2px rgba(36, 144, 239, 0.45);
+}
+
+.table thead th.th-sortable::after {
+    position: absolute;
+    right: 0.45rem;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.62rem;
+    letter-spacing: 0;
+    text-transform: none;
+    font-weight: 700;
+    opacity: 0.35;
+    content: "↕";
+}
+
+.table thead th.th-sort-asc::after {
+    content: "↑";
+    opacity: 0.9;
+}
+
+.table thead th.th-sort-desc::after {
+    content: "↓";
+    opacity: 0.9;
+}
+
 .pill {
     display: inline-block;
     padding: 0.15rem 0.45rem;
