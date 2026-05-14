@@ -460,17 +460,22 @@ body {
 .td-actions {
     text-align: right;
     white-space: nowrap;
+    vertical-align: middle;
 }
 
-.td-actions {
-    display: flex;
-    gap: 0.35rem;
-    justify-content: flex-end;
-    align-items: center;
+.td-actions > .btn {
+    vertical-align: middle;
+}
+
+.td-actions > * + * {
+    margin-left: 0.35rem;
 }
 
 .inline-form {
-    display: inline;
+    display: inline-flex;
+    align-items: center;
+    vertical-align: middle;
+    margin: 0;
 }
 
 .pill {
