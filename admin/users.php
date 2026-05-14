@@ -243,6 +243,7 @@ cmc_layout_start('Users', $user);
                     <td><?= $u['organisation_name'] !== null ? e((string) $u['organisation_name']) : '—' ?></td>
                     <td><?= $u['department_name'] !== null ? e((string) $u['department_name']) : '—' ?></td>
                     <td class="td-actions">
+                        <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('admin/edit_user.php?id=' . (int) $u['id'])) ?>">Edit</a>
                         <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('admin/reset_user_password.php?id=' . (int) $u['id'])) ?>">Reset password</a>
                         <?php if ((int) $u['id'] !== (int) $user['id']) : ?>
                             <form method="post" class="inline-form" data-confirm="Delete this user?">
