@@ -122,6 +122,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         cmc_redirect('resources/item.php?id=' . $id);
     }
 
+    if ($action === 'delete') {
+        $err = cmc_resource_item_delete($pdo, $id);
+        if ($err !== null) {
+            cmc_flash_set('error', $err);
+        } else {
+            cmc_flash_set('success', 'Resource deleted.');
+            cmc_redirect('resources/index.php');
+        }
+        cmc_redirect('resources/item.php?id=' . $id);
+    }
+
     cmc_redirect('resources/item.php?id=' . $id);
 }
 
@@ -143,6 +154,11 @@ cmc_layout_start('Resource #' . $id, $user);
 <div class="toolbar">
     <a class="btn btn-ghost" href="<?= e(cmc_url('resources/index.php')) ?>">← All resources</a>
     <h2 class="section-title"><?= e((string) $item['name']) ?></h2>
+    <form method="post" class="inline-form" style="margin-left: auto;" data-confirm="Delete this resource permanently? It must not be on any fulfillment material list or assignment.">
+        <?= cmc_csrf_field() ?>
+        <input type="hidden" name="action" value="delete">
+        <button class="btn btn-danger" type="submit">Delete resource</button>
+    </form>
 </div>
 
 <div class="card card-form">

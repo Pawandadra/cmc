@@ -259,3 +259,40 @@ function cmc_inventory_format_qty(float $q): string
 {
     return cmc_resource_format_qty($q);
 }
+
+/**
+ * Remove an inventory item if it is not referenced by fulfillments (SDE).
+ *
+ * @return string|null error message, or null on success
+ */
+function cmc_resource_item_delete(PDO $pdo, int $itemId): ?string
+{
+    if ($itemId < 1) {
+        return 'Invalid resource.';
+    }
+    $ex = $pdo->prepare('SELECT 1 FROM inventory_items WHERE id = ?');
+    $ex->execute([$itemId]);
+    if (!$ex->fetch()) {
+        return 'Resource not found.';
+    }
+
+    $st = $pdo->prepare('SELECT COUNT(*) FROM complaint_fulfillment_lines WHERE inventory_item_id = ?');
+    $st->execute([$itemId]);
+    if ((int) $st->fetchColumn() > 0) {
+        return 'This resource is still on a fulfillment material list. Remove it from fulfillments first.';
+    }
+
+    $st2 = $pdo->prepare('SELECT COUNT(*) FROM resource_assignments WHERE resource_id = ?');
+    $st2->execute([$itemId]);
+    if ((int) $st2->fetchColumn() > 0) {
+        return 'This resource still has assignments on a fulfillment. Release or complete them first.';
+    }
+
+    $pdo->prepare('DELETE FROM inventory_items WHERE id = ?')->execute([$itemId]);
+    $n = (int) $pdo->query('SELECT changes()')->fetchColumn();
+    if ($n !== 1) {
+        return 'Could not delete resource.';
+    }
+
+    return null;
+}

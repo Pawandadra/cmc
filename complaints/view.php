@@ -45,6 +45,16 @@ $canSde = cmc_complaint_sde_can_act($user, $c);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     cmc_csrf_validate();
+    if ((string) ($_POST['complaint_delete'] ?? '') === '1') {
+        $err = cmc_complaint_delete_if_allowed($pdo, $user, $id);
+        if ($err !== null) {
+            cmc_flash_set('error', $err);
+            cmc_redirect('complaints/view.php?' . $viewQuery);
+        }
+        cmc_flash_set('success', 'Complaint deleted.');
+        cmc_redirect('complaints/index.php');
+    }
+
     $action = (string) ($_POST['workflow_action'] ?? '');
     $comment = trim((string) ($_POST['comment'] ?? ''));
     if (strlen($comment) > 5000) {
@@ -253,6 +263,13 @@ cmc_layout_start('Complaint ' . $refDisplay, $user);
     </section>
 </div>
 <div class="toolbar">
+    <?php if (cmc_complaint_admin_or_raiser_may_delete($user, $c)) : ?>
+        <form method="post" class="inline-form" data-confirm="<?= $user['role'] === 'admin' ? 'Permanently delete this complaint and all related records?' : 'Withdraw and delete this complaint? This cannot be undone.' ?>">
+            <?= cmc_csrf_field() ?>
+            <input type="hidden" name="complaint_delete" value="1">
+            <button class="btn btn-danger" type="submit"><?= $user['role'] === 'admin' ? 'Delete complaint' : 'Withdraw complaint' ?></button>
+        </form>
+    <?php endif; ?>
     <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">Back to list</a>
 </div>
 <?php

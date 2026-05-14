@@ -143,3 +143,28 @@ function cmc_billing_create_record(
 
     return $bid;
 }
+
+/**
+ * Delete an internal bill and its line items (SDE). Fulfillment row is unchanged.
+ *
+ * @return string|null error message, or null on success
+ */
+function cmc_billing_delete_internal_bill(PDO $pdo, int $billId): ?string
+{
+    if ($billId < 1) {
+        return 'Invalid bill.';
+    }
+    $ex = $pdo->prepare('SELECT 1 FROM internal_bills WHERE id = ?');
+    $ex->execute([$billId]);
+    if (!$ex->fetch()) {
+        return 'Bill not found.';
+    }
+
+    $pdo->prepare('DELETE FROM internal_bills WHERE id = ?')->execute([$billId]);
+    $n = (int) $pdo->query('SELECT changes()')->fetchColumn();
+    if ($n !== 1) {
+        return 'Could not delete bill.';
+    }
+
+    return null;
+}

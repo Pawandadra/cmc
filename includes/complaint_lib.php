@@ -137,6 +137,45 @@ function cmc_complaint_user_can_view(array $u, array $c): bool
     return false;
 }
 
+/** Raiser may withdraw a complaint before the department HOD has acted (still awaiting HOD). */
+function cmc_complaint_raiser_may_delete_pending_hod(array $u, array $c): bool
+{
+    return (int) ($c['raised_by_user_id'] ?? 0) === (int) ($u['id'] ?? 0)
+        && ($c['status'] ?? '') === 'pending_hod';
+}
+
+/** Admin may delete any complaint; raiser may delete own only while {@see cmc_complaint_raiser_may_delete_pending_hod}. */
+function cmc_complaint_admin_or_raiser_may_delete(array $u, array $c): bool
+{
+    if (($u['role'] ?? '') === 'admin') {
+        return true;
+    }
+
+    return cmc_complaint_raiser_may_delete_pending_hod($u, $c);
+}
+
+/**
+ * Deletes complaint if the user is allowed (admin, or raiser while still pending HOD). Verifies view access first.
+ *
+ * @param array<string, mixed> $u
+ * @return string|null error message, or null on success
+ */
+function cmc_complaint_delete_if_allowed(PDO $pdo, array $u, int $complaintId): ?string
+{
+    $row = cmc_complaint_fetch($pdo, $complaintId);
+    if ($row === null) {
+        return 'Complaint not found.';
+    }
+    if (!cmc_complaint_user_can_view($u, $row)) {
+        return 'You cannot access that complaint.';
+    }
+    if (!cmc_complaint_admin_or_raiser_may_delete($u, $row)) {
+        return 'You cannot delete this complaint. You may withdraw it only while it is still awaiting your department HOD (before they forward or reject it).';
+    }
+
+    return cmc_complaint_admin_delete($pdo, $complaintId);
+}
+
 /** @param array<string, mixed> $u */
 /** @param array<string, mixed> $c */
 function cmc_complaint_hod_can_act(array $u, array $c): bool

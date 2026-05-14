@@ -6,6 +6,22 @@ require_once __DIR__ . '/_auth.php';
 $user = $cmcBillingUser;
 $pdo = cmc_db();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    cmc_csrf_validate();
+    if ((string) ($_POST['action'] ?? '') === 'delete') {
+        $bid = (int) ($_POST['id'] ?? 0);
+        $err = cmc_billing_delete_internal_bill($pdo, $bid);
+        if ($err !== null) {
+            cmc_flash_set('error', $err);
+        } else {
+            cmc_flash_set('success', 'Bill deleted.');
+        }
+        cmc_redirect('billing/index.php');
+    }
+    cmc_flash_set('error', 'Invalid request.');
+    cmc_redirect('billing/index.php');
+}
+
 $bills = $pdo->query(
     'SELECT b.id, b.fulfillment_id, b.material_subtotal, b.labour_subtotal, b.equipment_subtotal, b.wage_adjustment, b.other_expenses, b.grand_total, b.created_at,
             f.complaint_id, c.reference_code, c.subject
@@ -58,6 +74,12 @@ cmc_layout_start('Billing', $user);
                         <td class="muted"><?= e((string) $b['created_at']) ?></td>
                         <td class="td-actions">
                             <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('billing/view.php?id=' . (int) $b['id'])) ?>">View</a>
+                            <form method="post" action="<?= e(cmc_url('billing/index.php')) ?>" class="inline-form" data-confirm="Delete this bill permanently? Line items will be removed. The fulfillment record is kept.">
+                                <?= cmc_csrf_field() ?>
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="id" value="<?= (int) $b['id'] ?>">
+                                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                            </form>
                         </td>
                     </tr>
                 <?php endforeach; ?>

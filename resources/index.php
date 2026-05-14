@@ -9,6 +9,16 @@ $pdo = cmc_db();
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     cmc_csrf_validate();
     $action = (string) ($_POST['action'] ?? '');
+    if ($action === 'delete') {
+        $did = (int) ($_POST['id'] ?? 0);
+        $err = cmc_resource_item_delete($pdo, $did);
+        if ($err !== null) {
+            cmc_flash_set('error', $err);
+        } else {
+            cmc_flash_set('success', 'Resource deleted.');
+        }
+        cmc_redirect('resources/index.php');
+    }
     if ($action !== 'create') {
         cmc_redirect('resources/index.php');
     }
@@ -180,6 +190,12 @@ cmc_layout_start('Resources', $user);
                         <td class="muted"><?= e((string) $it['updated_at']) ?></td>
                         <td class="td-actions">
                             <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('resources/item.php?id=' . (int) $it['id'])) ?>">Manage</a>
+                            <form method="post" action="<?= e(cmc_url('resources/index.php')) ?>" class="inline-form" data-confirm="Delete this resource? This cannot be undone if the item is unused on fulfillments.">
+                                <?= cmc_csrf_field() ?>
+                                <input type="hidden" name="action" value="delete">
+                                <input type="hidden" name="id" value="<?= (int) $it['id'] ?>">
+                                <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                            </form>
                         </td>
                     </tr>
                 <?php endforeach; ?>

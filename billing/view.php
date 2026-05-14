@@ -34,6 +34,21 @@ $lines = $pdo->prepare(
 $lines->execute([$id]);
 $rows = $lines->fetchAll();
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    cmc_csrf_validate();
+    if ((string) ($_POST['action'] ?? '') === 'delete' && (int) ($_POST['id'] ?? 0) === $id) {
+        $err = cmc_billing_delete_internal_bill($pdo, $id);
+        if ($err !== null) {
+            cmc_flash_set('error', $err);
+            cmc_redirect('billing/view.php?id=' . $id);
+        }
+        cmc_flash_set('success', 'Bill deleted.');
+        cmc_redirect('billing/index.php');
+    }
+    cmc_flash_set('error', 'Invalid request.');
+    cmc_redirect('billing/view.php?id=' . $id);
+}
+
 $complaintViewQs = trim((string) ($bill['reference_code'] ?? '')) !== ''
     ? 'ref=' . rawurlencode((string) $bill['reference_code'])
     : 'id=' . (int) $bill['complaint_id'];
@@ -46,6 +61,12 @@ cmc_layout_start('Bill #' . $id, $user);
 <div class="toolbar">
     <a class="btn btn-ghost" href="<?= e(cmc_url('billing/index.php')) ?>">← All bills</a>
     <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/view.php?' . $complaintViewQs)) ?>">Complaint <code><?= e($complaintRefLabel) ?></code></a>
+    <form method="post" class="inline-form" style="margin-left: auto;" data-confirm="Delete this bill and all its line items? This cannot be undone.">
+        <?= cmc_csrf_field() ?>
+        <input type="hidden" name="action" value="delete">
+        <input type="hidden" name="id" value="<?= (int) $id ?>">
+        <button class="btn btn-danger" type="submit">Delete bill</button>
+    </form>
 </div>
 
 <div class="card">

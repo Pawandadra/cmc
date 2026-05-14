@@ -7,7 +7,7 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 $user = cmc_require_login();
 $pdo = cmc_db();
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user['role'] === 'admin') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     cmc_csrf_validate();
     $action = (string) ($_POST['action'] ?? '');
     $keep = [];
@@ -19,21 +19,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user['role'] === 'admin') {
     }
     $redirPath = 'complaints/index.php' . ($keep !== [] ? '?' . http_build_query($keep) : '');
 
-    if ($action === 'delete') {
-        $id = (int) ($_POST['id'] ?? 0);
-        if ($id < 1) {
-            cmc_flash_set('error', 'Invalid complaint.');
-        } else {
-            $err = cmc_complaint_admin_delete($pdo, $id);
-            if ($err !== null) {
-                cmc_flash_set('error', $err);
-            } else {
-                cmc_flash_set('success', 'Complaint deleted.');
-            }
-        }
-        cmc_redirect($redirPath);
-    }
     if ($action === 'bulk_delete') {
+        if ($user['role'] !== 'admin') {
+            cmc_flash_set('error', 'You are not allowed to bulk delete complaints.');
+            cmc_redirect($redirPath);
+        }
         $ids = $_POST['ids'] ?? [];
         if (!is_array($ids)) {
             $ids = [];
@@ -46,7 +36,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $user['role'] === 'admin') {
         }
         cmc_redirect($redirPath);
     }
-    cmc_flash_set('error', 'Unknown action.');
+
+    if ($action === 'delete') {
+        $delId = (int) ($_POST['id'] ?? 0);
+        if ($delId < 1) {
+            cmc_flash_set('error', 'Invalid complaint.');
+        } else {
+            $err = cmc_complaint_delete_if_allowed($pdo, $user, $delId);
+            if ($err !== null) {
+                cmc_flash_set('error', $err);
+            } else {
+                cmc_flash_set('success', 'Complaint deleted.');
+            }
+        }
+        cmc_redirect($redirPath);
+    }
+
+    cmc_flash_set('error', 'Invalid request.');
     cmc_redirect($redirPath);
 }
 
@@ -85,7 +91,7 @@ $heading = 'Complaints';
 $where = [];
 $params = [];
 
-$select = 'SELECT c.id, c.reference_code, c.subject, c.status, c.created_at, c.updated_at,
+$select = 'SELECT c.id, c.reference_code, c.subject, c.status, c.created_at, c.updated_at, c.raised_by_user_id,
        rb.full_name AS raised_by_name, rb.email AS raised_by_email,
        d.name AS department_name, o.name AS organisation_name';
 
@@ -179,6 +185,7 @@ cmc_layout_start($heading, $user);
     <div class="toolbar">
         <a class="btn btn-primary" href="<?= e(cmc_url('complaints/create.php')) ?>">Raise complaint</a>
     </div>
+    <p class="muted small" style="margin-bottom: 0.75rem;">You may delete a complaint you raised only while it is still <strong>awaiting your department HOD</strong>—before they forward or reject it.</p>
 <?php endif; ?>
 
 <div class="card card-form" style="margin-bottom: 1rem;">
@@ -315,12 +322,12 @@ cmc_layout_start($heading, $user);
                         <td class="muted"><?= e((string) $r['updated_at']) ?></td>
                         <td class="td-actions">
                             <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/view.php?' . (trim((string) ($r['reference_code'] ?? '')) !== '' ? 'ref=' . rawurlencode((string) $r['reference_code']) : 'id=' . (int) $r['id']))) ?>">Open</a>
-                            <?php if ($user['role'] === 'admin') : ?>
-                                <form method="post" action="<?= e($listUrlWithQuery) ?>" class="inline-form" data-confirm="Permanently delete this complaint and all related records?">
+                            <?php if (cmc_complaint_admin_or_raiser_may_delete($user, $r)) : ?>
+                                <form method="post" action="<?= e($listUrlWithQuery) ?>" class="inline-form" data-confirm="<?= $user['role'] === 'admin' ? 'Permanently delete this complaint and all related records?' : 'Withdraw and delete this complaint? This cannot be undone.' ?>">
                                     <?= cmc_csrf_field() ?>
                                     <input type="hidden" name="action" value="delete">
                                     <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
-                                    <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                                    <button class="btn btn-sm btn-danger" type="submit"><?= $user['role'] === 'admin' ? 'Delete' : 'Withdraw' ?></button>
                                 </form>
                             <?php endif; ?>
                         </td>
