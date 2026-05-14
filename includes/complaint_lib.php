@@ -137,11 +137,26 @@ function cmc_complaint_user_can_view(array $u, array $c): bool
     return false;
 }
 
-/** Raiser may withdraw a complaint before the department HOD has acted (still awaiting HOD). */
+/** Comment stored on the auto-generated timeline event when an HOD raises a complaint (routed straight to SDE). */
+function cmc_complaint_hod_auto_forward_to_sde_comment(): string
+{
+    return 'Department HOD filed this complaint; it was sent directly to the SDE queue for cell review.';
+}
+
+/**
+ * Raiser may withdraw: while awaiting HOD (member or HOD), or — if they are the HOD — while awaiting SDE
+ * before the cell has acted (complaints they filed as HOD skip the department HOD step).
+ */
 function cmc_complaint_raiser_may_delete_pending_hod(array $u, array $c): bool
 {
-    return (int) ($c['raised_by_user_id'] ?? 0) === (int) ($u['id'] ?? 0)
-        && ($c['status'] ?? '') === 'pending_hod';
+    if ((int) ($c['raised_by_user_id'] ?? 0) !== (int) ($u['id'] ?? 0)) {
+        return false;
+    }
+    if (($c['status'] ?? '') === 'pending_hod') {
+        return true;
+    }
+
+    return ($u['role'] ?? '') === 'hod' && ($c['status'] ?? '') === 'pending_sde';
 }
 
 /** Admin may delete any complaint; raiser may delete own only while {@see cmc_complaint_raiser_may_delete_pending_hod}. */
@@ -155,7 +170,7 @@ function cmc_complaint_admin_or_raiser_may_delete(array $u, array $c): bool
 }
 
 /**
- * Deletes complaint if the user is allowed (admin, or raiser while still pending HOD). Verifies view access first.
+ * Deletes complaint if the user is allowed (admin, or raiser while withdraw is still allowed). Verifies view access first.
  *
  * @param array<string, mixed> $u
  * @return string|null error message, or null on success
@@ -170,7 +185,7 @@ function cmc_complaint_delete_if_allowed(PDO $pdo, array $u, int $complaintId): 
         return 'You cannot access that complaint.';
     }
     if (!cmc_complaint_admin_or_raiser_may_delete($u, $row)) {
-        return 'You cannot delete this complaint. You may withdraw it only while it is still awaiting your department HOD (before they forward or reject it).';
+        return 'You cannot delete this complaint. You may withdraw it only while it is awaiting your department HOD (before they forward or reject it), or—if you filed it as HOD—while it is still in the SDE queue before the cell has approved or rejected it.';
     }
 
     return cmc_complaint_admin_delete($pdo, $complaintId);
@@ -378,13 +393,16 @@ function cmc_complaint_create_from_post(PDO $pdo, array $u, array $cfg): array
 
     $pdo->beginTransaction();
     try {
+        $isHodRaiser = ($u['role'] ?? '') === 'hod';
+        $initialStatus = $isHodRaiser ? 'pending_sde' : 'pending_hod';
+
         $cid = 0;
         for ($insTry = 0; $insTry < 12; $insTry++) {
             $ref = cmc_complaint_allocate_reference_code($pdo);
             try {
                 $st = $pdo->prepare(
                     'INSERT INTO complaints (reference_code, organisation_id, department_id, raised_by_user_id, subject, details, location, contact_phone, status)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'pending_hod\')'
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 );
                 $st->execute([
                     $ref,
@@ -395,6 +413,7 @@ function cmc_complaint_create_from_post(PDO $pdo, array $u, array $cfg): array
                     $details,
                     $location,
                     $phoneVal,
+                    $initialStatus,
                 ]);
                 $cid = (int) $pdo->lastInsertId();
                 break;
@@ -416,6 +435,12 @@ function cmc_complaint_create_from_post(PDO $pdo, array $u, array $cfg): array
             'INSERT INTO complaint_events (complaint_id, actor_user_id, event_type, comment) VALUES (?, ?, \'submitted\', NULL)'
         );
         $ev->execute([$cid, (int) $u['id']]);
+
+        if ($isHodRaiser) {
+            $pdo->prepare(
+                'INSERT INTO complaint_events (complaint_id, actor_user_id, event_type, comment) VALUES (?, ?, \'hod_forwarded\', ?)'
+            )->execute([$cid, (int) $u['id'], cmc_complaint_hod_auto_forward_to_sde_comment()]);
+        }
 
         $err = cmc_complaint_save_uploads($pdo, $cid, $cfg);
         if ($err !== null) {
@@ -541,7 +566,7 @@ function cmc_complaint_attachments(PDO $pdo, int $complaintId): array
     return $st->fetchAll();
 }
 
-/** @return array<string, mixed>|null */
+/** Human-readable workflow event type label. */
 function cmc_complaint_event_label(string $type): string
 {
     return match ($type) {
@@ -554,12 +579,22 @@ function cmc_complaint_event_label(string $type): string
     };
 }
 
+/** Timeline title; clarifies auto SDE routing when the departmental HOD filed the complaint. */
+function cmc_complaint_event_timeline_title(string $type, ?string $comment): string
+{
+    if ($type === 'hod_forwarded' && ($comment ?? '') === cmc_complaint_hod_auto_forward_to_sde_comment()) {
+        return 'Sent directly to SDE (HOD filed this complaint)';
+    }
+
+    return cmc_complaint_event_label($type);
+}
+
 /** @return array<string, mixed>|null */
 function cmc_complaint_fetch(PDO $pdo, int $id): ?array
 {
     $st = $pdo->prepare(
         'SELECT c.*, o.name AS organisation_name, d.name AS department_name,
-                rb.full_name AS raised_by_name, rb.email AS raised_by_email
+                rb.full_name AS raised_by_name, rb.email AS raised_by_email, rb.role AS raised_by_role
          FROM complaints c
          JOIN organisations o ON o.id = c.organisation_id
          JOIN departments d ON d.id = c.department_id
@@ -580,7 +615,7 @@ function cmc_complaint_fetch_by_reference(PDO $pdo, string $ref): ?array
     }
     $st = $pdo->prepare(
         'SELECT c.*, o.name AS organisation_name, d.name AS department_name,
-                rb.full_name AS raised_by_name, rb.email AS raised_by_email
+                rb.full_name AS raised_by_name, rb.email AS raised_by_email, rb.role AS raised_by_role
          FROM complaints c
          JOIN organisations o ON o.id = c.organisation_id
          JOIN departments d ON d.id = c.department_id

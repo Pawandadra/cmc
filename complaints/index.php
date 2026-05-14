@@ -185,7 +185,11 @@ cmc_layout_start($heading, $user);
     <div class="toolbar">
         <a class="btn btn-primary" href="<?= e(cmc_url('complaints/create.php')) ?>">Raise complaint</a>
     </div>
-    <p class="muted small" style="margin-bottom: 0.75rem;">You may delete a complaint you raised only while it is still <strong>awaiting your department HOD</strong>—before they forward or reject it.</p>
+    <?php if (($user['role'] ?? '') === 'hod') : ?>
+        <p class="muted small" style="margin-bottom: 0.75rem;">You may withdraw your own complaint while it is awaiting your department HOD, or — when you submitted it as HOD and it was sent straight to the cell — while it is still in the SDE queue before the cell has approved or rejected it.</p>
+    <?php else : ?>
+        <p class="muted small" style="margin-bottom: 0.75rem;">You may delete a complaint you raised only while it is still <strong>awaiting your department HOD</strong>—before they forward or reject it.</p>
+    <?php endif; ?>
 <?php endif; ?>
 
 <div class="card card-form" style="margin-bottom: 1rem;">

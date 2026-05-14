@@ -14,7 +14,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         cmc_flash_set('error', $err);
         cmc_redirect('complaints/create.php');
     }
-    cmc_flash_set('success', 'Complaint submitted. Your HOD has been notified (in-app).');
+    if (($user['role'] ?? '') === 'hod') {
+        cmc_flash_set('success', 'Complaint submitted. It has been sent to the SDE cell queue for review.');
+    } else {
+        cmc_flash_set('success', 'Complaint submitted. Your HOD has been notified (in-app).');
+    }
     $st = cmc_db()->prepare('SELECT reference_code FROM complaints WHERE id = ?');
     $st->execute([$cid]);
     $newRef = (string) $st->fetchColumn();
@@ -25,7 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 cmc_layout_start('Raise complaint', $user);
 ?>
 <div class="card card-form" style="max-width: 720px;">
-    <p class="muted">Complaints are routed to your department HOD first. If they forward the case, the SDE at the cell will review it.</p>
+    <?php if (($user['role'] ?? '') === 'hod') : ?>
+        <p class="muted">As department HOD, complaints you raise are sent <strong>directly to the SDE</strong> cell for review. There is no separate HOD approval step for your own submissions.</p>
+    <?php else : ?>
+        <p class="muted">Complaints are routed to your department HOD first. If they forward the case, the SDE at the cell will review it.</p>
+    <?php endif; ?>
     <form method="post" enctype="multipart/form-data" class="form-stack">
         <?= cmc_csrf_field() ?>
         <label class="field">

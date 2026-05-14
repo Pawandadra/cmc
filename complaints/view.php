@@ -210,7 +210,7 @@ cmc_layout_start('Complaint ' . $refDisplay, $user);
                 <li class="timeline-item">
                     <div class="timeline-dot"></div>
                     <div class="timeline-body">
-                        <div class="timeline-title"><?= e(cmc_complaint_event_label((string) $ev['event_type'])) ?></div>
+                        <div class="timeline-title"><?= e(cmc_complaint_event_timeline_title((string) $ev['event_type'], isset($ev['comment']) ? (string) $ev['comment'] : null)) ?></div>
                         <div class="muted small">
                             <?= e((string) $ev['actor_name']) ?> · <?= e((string) $ev['created_at']) ?>
                         </div>
@@ -242,7 +242,10 @@ cmc_layout_start('Complaint ' . $refDisplay, $user);
             </script>
         <?php elseif ($canSde) : ?>
             <h3 class="subheading">SDE decision</h3>
-            <p class="muted small">You are reviewing a complaint forwarded from the department HOD. The submitter is shown above.</p>
+            <?php $raisedByIsHod = (($c['raised_by_role'] ?? '') === 'hod'); ?>
+            <p class="muted small"><?= $raisedByIsHod
+                ? 'This complaint was filed by the department HOD and sent straight to your queue (no separate HOD review step). The submitter is shown above.'
+                : 'You are reviewing a complaint forwarded from the department HOD. The submitter is shown above.' ?></p>
             <form method="post" class="form-stack" id="sde-workflow-form">
                 <?= cmc_csrf_field() ?>
                 <label class="field">
