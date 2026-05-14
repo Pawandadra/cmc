@@ -60,17 +60,16 @@ function cmc_department_in_organisation(PDO $pdo, int $departmentId, int $organi
     return (bool) $st->fetchColumn();
 }
 
-/** Generate a new complaint ID candidate (e.g. CMP-20260506-K7X9M2). */
+/** Generate a new complaint ID candidate: 7 uppercase base36 chars (unix time + random). */
 function cmc_complaint_new_reference_candidate(): string
 {
-    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    $suffix = '';
-    $len = strlen($alphabet);
-    for ($i = 0; $i < 6; $i++) {
-        $suffix .= $alphabet[random_int(0, $len - 1)];
-    }
+    $pow5 = 36 ** 5;
+    $pow2 = 36 ** 2;
+    $tPart = (int) (time() % $pow5);
+    $rPart = random_int(0, $pow2 - 1);
+    $v = $tPart * $pow2 + $rPart;
 
-    return 'CMP-' . gmdate('Ymd') . '-' . $suffix;
+    return strtoupper(str_pad(base_convert((string) $v, 10, 36), 7, '0', STR_PAD_LEFT));
 }
 
 function cmc_complaint_reference_code_exists(PDO $pdo, string $ref): bool
