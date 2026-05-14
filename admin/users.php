@@ -67,40 +67,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             cmc_flash_set('error', 'You cannot delete your own account.');
         } else {
             $pdo = cmc_db();
-            $who = $pdo->prepare('SELECT email FROM users WHERE id = ?');
-            $who->execute([$id]);
-            $row = $who->fetch();
-            if (!$row) {
+            $exists = $pdo->prepare('SELECT 1 FROM users WHERE id = ?');
+            $exists->execute([$id]);
+            if (!$exists->fetch()) {
                 cmc_flash_set('error', 'User not found.');
-            } elseif (mb_strtolower(trim((string) ($row['email'] ?? ''))) === 'pawan@gndec.ac.in') {
-                cmc_flash_set(
-                    'error',
-                    'Haha, nice try. Legend cannot be deleted.(o_0)'
-                );
             } else {
-            $blockers = cmc_user_delete_blockers($pdo, $id);
-            if ($blockers !== []) {
-                cmc_flash_set(
-                    'error',
-                    'This user cannot be deleted while linked to: ' . implode(', ', $blockers) . '.'
-                );
-            } else {
-                try {
-                    $st = $pdo->prepare('DELETE FROM users WHERE id = ? AND role != \'admin\'');
-                    $st->execute([$id]);
-                    if ($st->rowCount() === 0) {
-                        cmc_flash_set('error', 'User could not be deleted (admins are protected).');
-                    } else {
-                        cmc_flash_set('success', 'User removed.');
-                    }
-                } catch (PDOException $e) {
-                    if (str_contains($e->getMessage(), 'FOREIGN KEY') || str_contains($e->getMessage(), 'constraint')) {
-                        cmc_flash_set('error', 'This user is still referenced elsewhere and cannot be deleted.');
-                    } else {
-                        throw $e;
+                $blockers = cmc_user_delete_blockers($pdo, $id);
+                if ($blockers !== []) {
+                    cmc_flash_set(
+                        'error',
+                        'This user cannot be deleted while linked to: ' . implode(', ', $blockers) . '.'
+                    );
+                } else {
+                    try {
+                        $st = $pdo->prepare('DELETE FROM users WHERE id = ? AND role != \'admin\'');
+                        $st->execute([$id]);
+                        if ($st->rowCount() === 0) {
+                            cmc_flash_set('error', 'User could not be deleted (admins are protected).');
+                        } else {
+                            cmc_flash_set('success', 'User removed.');
+                        }
+                    } catch (PDOException $e) {
+                        if (str_contains($e->getMessage(), 'FOREIGN KEY') || str_contains($e->getMessage(), 'constraint')) {
+                            cmc_flash_set('error', 'This user is still referenced elsewhere and cannot be deleted.');
+                        } else {
+                            throw $e;
+                        }
                     }
                 }
-            }
             }
         }
         cmc_redirect('admin/users.php');

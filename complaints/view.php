@@ -114,7 +114,7 @@ if ($user['role'] === 'sde' && ($c['status'] ?? '') === 'sde_approved') {
 $events = cmc_complaint_events($pdo, $id);
 $attachments = cmc_complaint_attachments($pdo, $id);
 
-cmc_layout_start('Complaint ' . $id, $user);
+cmc_layout_start('Complaint #' . $id, $user);
 ?>
 <div class="detail-grid">
     <section class="card">
@@ -123,6 +123,8 @@ cmc_layout_start('Complaint ' . $id, $user);
         </div>
         <h2 class="card-title"><?= e((string) $c['subject']) ?></h2>
         <dl class="dl-grid">
+            <dt>Complaint ID</dt>
+            <dd class="muted"><?= (int) $id ?></dd>
             <dt>Raised by</dt>
             <dd><?= e((string) $c['raised_by_name']) ?> <span class="muted">(<?= e((string) $c['raised_by_email']) ?>)</span></dd>
             <dt>Organisation</dt>

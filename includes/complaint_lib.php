@@ -37,6 +37,51 @@ function cmc_complaint_priority_label(string $p): string
     };
 }
 
+/** @return list<string> */
+function cmc_complaint_statuses_all(): array
+{
+    return ['pending_hod', 'hod_rejected', 'pending_sde', 'sde_approved', 'sde_rejected'];
+}
+
+/** @return list<string> */
+function cmc_complaint_statuses_for_sde_queue(): array
+{
+    return ['pending_sde', 'sde_approved', 'sde_rejected'];
+}
+
+function cmc_department_in_organisation(PDO $pdo, int $departmentId, int $organisationId): bool
+{
+    if ($departmentId < 1 || $organisationId < 1) {
+        return false;
+    }
+    $st = $pdo->prepare('SELECT 1 FROM departments WHERE id = ? AND organisation_id = ?');
+    $st->execute([$departmentId, $organisationId]);
+
+    return (bool) $st->fetchColumn();
+}
+
+/**
+ * Case-insensitive substring match on id, subject, raiser name, raiser email (requires join alias `rb`).
+ *
+ * @return array{0: string, 1: list<string>}
+ */
+function cmc_complaint_search_fragment(string $q): array
+{
+    $q = trim($q);
+    if ($q === '') {
+        return ['1', []];
+    }
+    $needle = mb_strtolower($q, 'UTF-8');
+    $sql = '(
+        INSTR(LOWER(CAST(c.id AS TEXT)), ?) > 0
+        OR INSTR(LOWER(c.subject), ?) > 0
+        OR INSTR(LOWER(rb.full_name), ?) > 0
+        OR INSTR(LOWER(COALESCE(rb.email, \'\')), ?) > 0
+    )';
+
+    return [$sql, [$needle, $needle, $needle, $needle]];
+}
+
 /** @param array<string, mixed> $u */
 /** @param array<string, mixed> $c complaint row */
 function cmc_complaint_user_can_view(array $u, array $c): bool
