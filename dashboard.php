@@ -344,6 +344,21 @@ if ($role === 'member') {
         ['n' => $bs['sde_approved'], 'class' => 'seg-approved', 'href' => 'complaints/index.php?status=sde_approved', 'label' => 'Approved'],
         ['n' => $bs['sde_rejected'], 'class' => 'seg-rej-sde', 'href' => 'complaints/index.php?status=sde_rejected', 'label' => 'Rejected'],
     ];
+    $sdeId = (int) $user['id'];
+    $fulMixSde = cmc_dashboard_sde_fulfillment_by_status($pdo, $sdeId);
+    $sumFul = array_sum($fulMixSde);
+    $invKinds = cmc_dashboard_inventory_counts_by_kind($pdo);
+    $sumInv = array_sum($invKinds);
+    $billSums = cmc_dashboard_billing_subtotal_sums($pdo);
+    $sumBillParts = $billSums['material'] + $billSums['labour'] + $billSums['equipment'];
+    $ffClasses = [
+        'planning' => 'segff-plan',
+        'in_progress' => 'segff-run',
+        'on_hold' => 'segff-hold',
+        'completed' => 'segff-done',
+        'cancelled' => 'segff-can',
+    ];
+    $resSegClass = ['material' => 'seg-res-mat', 'equipment' => 'seg-res-eq', 'worker' => 'seg-res-worker'];
     ?>
     <section class="card dashboard-snapshot">
         <header class="dashboard-snapshot-header">
@@ -390,6 +405,125 @@ if ($role === 'member') {
             </div>
         </div>
     </section>
+
+    <div class="dashboard-sde-charts">
+        <div class="card dashboard-mini-chart">
+            <div class="dashboard-mini-chart-head">
+                <h3 class="dashboard-mini-chart-title">Fulfillment (your cases)</h3>
+                <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('fulfillment/index.php')) ?>">Open</a>
+            </div>
+            <p class="muted small dashboard-mini-chart-lead">Work status for fulfillments where you are the assigned SDE.</p>
+            <?php if ($sumFul < 1) : ?>
+                <p class="muted small">No fulfillment records yet. Start from an approved complaint.</p>
+            <?php else : ?>
+                <div class="dashboard-stackbar dashboard-stackbar-compact" role="img" aria-label="Fulfillment by status">
+                    <?php foreach ($fulMixSde as $bucket => $n) : ?>
+                        <?php if ($n > 0) : ?>
+                            <span class="dashboard-stackbar-seg <?= e($ffClasses[$bucket] ?? 'segff-plan') ?>" style="flex: <?= (int) $n ?> 1 0; min-width: 8px;" title="<?= e(cmc_fulfillment_work_status_label($bucket)) ?>: <?= (int) $n ?>"></span>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </div>
+                <ul class="dashboard-mini-legend">
+                    <?php foreach ($fulMixSde as $bucket => $n) : ?>
+                        <?php if ($n < 1) {
+                            continue;
+                        } ?>
+                        <li>
+                            <span class="dashboard-legend-dot <?= e($ffClasses[$bucket] ?? 'segff-plan') ?>"></span>
+                            <span><?= e(cmc_fulfillment_work_status_label($bucket)) ?></span>
+                            <strong><?= (int) $n ?></strong>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+
+        <div class="card dashboard-mini-chart">
+            <div class="dashboard-mini-chart-head">
+                <h3 class="dashboard-mini-chart-title">Resources</h3>
+                <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('resources/index.php')) ?>">Open</a>
+            </div>
+            <p class="muted small dashboard-mini-chart-lead">Inventory items by type (cell catalogue).</p>
+            <?php if ($sumInv < 1) : ?>
+                <p class="muted small">No inventory items yet.</p>
+            <?php else : ?>
+                <div class="dashboard-stackbar dashboard-stackbar-compact" role="img" aria-label="Resources by kind">
+                    <?php foreach ($invKinds as $kind => $n) : ?>
+                        <?php if ($n > 0) : ?>
+                            <span class="dashboard-stackbar-seg <?= e($resSegClass[$kind] ?? 'seg-res-mat') ?>" style="flex: <?= (int) $n ?> 1 0; min-width: 8px;" title="<?= e(cmc_resource_kind_label($kind)) ?>: <?= (int) $n ?>"></span>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </div>
+                <ul class="dashboard-mini-legend">
+                    <?php foreach ($invKinds as $kind => $n) : ?>
+                        <?php if ($n < 1) {
+                            continue;
+                        } ?>
+                        <li>
+                            <span class="dashboard-legend-dot <?= e($resSegClass[$kind] ?? 'seg-res-mat') ?>"></span>
+                            <span><?= e(cmc_resource_kind_label($kind)) ?></span>
+                            <strong><?= (int) $n ?></strong>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </div>
+
+        <div class="card dashboard-mini-chart">
+            <div class="dashboard-mini-chart-head">
+                <h3 class="dashboard-mini-chart-title">Billing</h3>
+                <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('billing/index.php')) ?>">Open</a>
+            </div>
+            <p class="muted small dashboard-mini-chart-lead">Share of recorded subtotals across all bills (materials vs labour vs equipment).</p>
+            <?php if ($billSums['bills'] < 1) : ?>
+                <p class="muted small">No bills generated yet.</p>
+            <?php elseif ($sumBillParts <= 0) : ?>
+                <p class="muted small"><?= (int) $billSums['bills'] ?> bill(s); subtotal lines are zero — open billing for detail.</p>
+            <?php else : ?>
+                <?php
+                $billFlex = static function (float $part, float $sum): int {
+                    if ($sum <= 0 || $part <= 0) {
+                        return 0;
+                    }
+
+                    return (int) max(1, round(1000 * $part / $sum));
+                };
+                $wMat = $billFlex($billSums['material'], $sumBillParts);
+                $wLab = $billFlex($billSums['labour'], $sumBillParts);
+                $wEq = $billFlex($billSums['equipment'], $sumBillParts);
+                ?>
+                <div class="dashboard-stackbar dashboard-stackbar-compact" role="img" aria-label="Billing subtotals mix">
+                    <?php if ($wMat > 0) : ?>
+                        <span class="dashboard-stackbar-seg seg-bill-mat" style="flex: <?= $wMat ?> 1 0; min-width: 8px;" title="Materials"></span>
+                    <?php endif; ?>
+                    <?php if ($wLab > 0) : ?>
+                        <span class="dashboard-stackbar-seg seg-bill-lab" style="flex: <?= $wLab ?> 1 0; min-width: 8px;" title="Labour"></span>
+                    <?php endif; ?>
+                    <?php if ($wEq > 0) : ?>
+                        <span class="dashboard-stackbar-seg seg-bill-eq" style="flex: <?= $wEq ?> 1 0; min-width: 8px;" title="Equipment"></span>
+                    <?php endif; ?>
+                </div>
+                <ul class="dashboard-mini-legend">
+                    <li>
+                        <span class="dashboard-legend-dot seg-bill-mat"></span>
+                        <span>Materials</span>
+                        <strong><?= e(cmc_resource_format_money($billSums['material'])) ?></strong>
+                    </li>
+                    <li>
+                        <span class="dashboard-legend-dot seg-bill-lab"></span>
+                        <span>Labour</span>
+                        <strong><?= e(cmc_resource_format_money($billSums['labour'])) ?></strong>
+                    </li>
+                    <li>
+                        <span class="dashboard-legend-dot seg-bill-eq"></span>
+                        <span>Equipment</span>
+                        <strong><?= e(cmc_resource_format_money($billSums['equipment'])) ?></strong>
+                    </li>
+                    <li class="dashboard-mini-legend-meta muted small"><?= (int) $billSums['bills'] ?> bill(s) total</li>
+                </ul>
+            <?php endif; ?>
+        </div>
+    </div>
 
     <section class="card dashboard-recent">
         <div class="dashboard-recent-head">

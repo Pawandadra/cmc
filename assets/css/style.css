@@ -998,3 +998,125 @@ body {
 .dashboard-ref {
     font-size: 0.78rem;
 }
+
+/* SDE dashboard: three charts in one row */
+.dashboard-sde-charts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+@media (max-width: 1020px) {
+    .dashboard-sde-charts {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dashboard-mini-chart {
+    padding: 1.1rem 1.2rem 1.2rem;
+    min-height: 12rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-mini-chart-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.35rem;
+}
+
+.dashboard-mini-chart-title {
+    margin: 0;
+    font-size: 0.98rem;
+    font-weight: 650;
+}
+
+.dashboard-mini-chart-lead {
+    margin: 0 0 0.75rem;
+}
+
+.dashboard-stackbar-compact {
+    height: 11px;
+    border-radius: 6px;
+    margin-bottom: 0.65rem;
+}
+
+.dashboard-mini-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    font-size: 0.82rem;
+    margin-top: auto;
+}
+
+.dashboard-mini-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.dashboard-mini-legend li strong {
+    margin-left: auto;
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-mini-legend-meta {
+    margin-top: 0.25rem;
+    padding-top: 0.35rem;
+    border-top: 1px dashed var(--border);
+}
+
+.seg-res-mat {
+    background: linear-gradient(180deg, #94a3b8, #64748b);
+}
+
+.seg-res-eq {
+    background: linear-gradient(180deg, #a78bfa, #7c3aed);
+}
+
+.seg-res-worker {
+    background: linear-gradient(180deg, #38bdf8, #0284c7);
+}
+
+.seg-bill-mat {
+    background: linear-gradient(180deg, #4ade80, #15803d);
+}
+
+.seg-bill-lab {
+    background: linear-gradient(180deg, #818cf8, #4338ca);
+}
+
+.seg-bill-eq {
+    background: linear-gradient(180deg, #fbbf24, #d97706);
+}
+
+.dashboard-legend-dot.seg-res-mat {
+    background: #64748b;
+}
+
+.dashboard-legend-dot.seg-res-eq {
+    background: #7c3aed;
+}
+
+.dashboard-legend-dot.seg-res-worker {
+    background: #0284c7;
+}
+
+.dashboard-legend-dot.seg-bill-mat {
+    background: #15803d;
+}
+
+.dashboard-legend-dot.seg-bill-lab {
+    background: #4338ca;
+}
+
+.dashboard-legend-dot.seg-bill-eq {
+    background: #d97706;
+}

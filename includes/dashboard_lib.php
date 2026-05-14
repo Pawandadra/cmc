@@ -173,3 +173,86 @@ function cmc_dashboard_recent_complaints(PDO $pdo, string $whereSql, array $wher
 
     return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
 }
+
+/**
+ * Fulfillment work_status counts for rows owned by this SDE user.
+ *
+ * @return array<string, int>
+ */
+function cmc_dashboard_sde_fulfillment_by_status(PDO $pdo, int $sdeUserId): array
+{
+    $order = ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'];
+    $out = array_fill_keys($order, 0);
+    if ($sdeUserId < 1) {
+        return $out;
+    }
+    $ex = $pdo->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='complaint_fulfillments'")->fetch();
+    if (!$ex) {
+        return $out;
+    }
+    $st = $pdo->prepare('SELECT work_status, COUNT(*) AS n FROM complaint_fulfillments WHERE sde_user_id = ? GROUP BY work_status');
+    $st->execute([$sdeUserId]);
+    while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+        $s = (string) ($row['work_status'] ?? '');
+        if (isset($out[$s])) {
+            $out[$s] = (int) $row['n'];
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Cell inventory: item counts by resource_kind.
+ *
+ * @return array<string, int>
+ */
+function cmc_dashboard_inventory_counts_by_kind(PDO $pdo): array
+{
+    $kinds = ['material', 'equipment', 'worker'];
+    $out = array_fill_keys($kinds, 0);
+    $ex = $pdo->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='inventory_items'")->fetch();
+    if (!$ex) {
+        return $out;
+    }
+    $st = $pdo->query('SELECT resource_kind, COUNT(*) AS n FROM inventory_items GROUP BY resource_kind');
+    while ($row = $st->fetch(PDO::FETCH_ASSOC)) {
+        $k = (string) ($row['resource_kind'] ?? '');
+        if (isset($out[$k])) {
+            $out[$k] = (int) $row['n'];
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * Cell-wide sums of bill subtotals (for proportion chart).
+ *
+ * @return array{material: float, labour: float, equipment: float, bills: int}
+ */
+function cmc_dashboard_billing_subtotal_sums(PDO $pdo): array
+{
+    $empty = ['material' => 0.0, 'labour' => 0.0, 'equipment' => 0.0, 'bills' => 0];
+    $ex = $pdo->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='internal_bills'")->fetch();
+    if (!$ex) {
+        return $empty;
+    }
+    $row = $pdo->query(
+        'SELECT COUNT(*) AS bills,
+                COALESCE(SUM(material_subtotal), 0) AS material,
+                COALESCE(SUM(labour_subtotal), 0) AS labour,
+                COALESCE(SUM(equipment_subtotal), 0) AS equipment
+         FROM internal_bills'
+    )->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
+        return $empty;
+    }
+
+    return [
+        'material' => (float) $row['material'],
+        'labour' => (float) $row['labour'],
+        'equipment' => (float) $row['equipment'],
+        'bills' => (int) $row['bills'],
+    ];
+}
