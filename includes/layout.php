@@ -33,9 +33,7 @@ function cmc_layout_start(string $title, array $user, ?array $navExtra = null): 
                     <?php if (in_array($user['role'], ['member', 'hod'], true)) : ?>
                         <a class="nav-item" href="<?= e(cmc_url('complaints/create.php')) ?>">Raise complaint</a>
                     <?php endif; ?>
-                    <a class="nav-item" href="<?= e(cmc_url('complaints/index.php')) ?>">Complaints
-                        
-                    </a>
+                    <a class="nav-item" href="<?= e(cmc_url('complaints/index.php')) ?>">Complaints</a>
                 <?php endif; ?>
                 <?php if ($user['role'] === 'sde') : ?>
                     <div class="nav-group-label">Approved complaints</div>

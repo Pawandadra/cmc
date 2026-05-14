@@ -207,6 +207,12 @@ body {
 .app-shell {
     display: flex;
     min-height: 100vh;
+    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow: hidden;
 }
 
 .sidebar {
@@ -217,11 +223,14 @@ body {
     display: flex;
     flex-direction: column;
     border-right: 1px solid #0f172a;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .sidebar .brand {
     padding: 1.25rem 1.25rem 0.75rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    flex-shrink: 0;
 }
 
 .sidebar .brand-mark {
@@ -234,6 +243,10 @@ body {
     flex-direction: column;
     gap: 0.15rem;
     flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .nav-group-label {
@@ -263,6 +276,8 @@ body {
     display: flex;
     flex-direction: column;
     gap: 0.65rem;
+    flex-shrink: 0;
+    background: var(--sidebar);
 }
 
 .user-chip {
@@ -285,8 +300,12 @@ body {
 .main {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .main-header {
@@ -303,7 +322,7 @@ body {
 
 .main-body {
     padding: 1.25rem 1.75rem 2rem;
-    flex: 1;
+    flex: 1 0 auto;
 }
 
 .flash {
@@ -437,13 +456,21 @@ body {
 @media (max-width: 768px) {
     .app-shell {
         flex-direction: column;
+        height: auto;
+        max-height: none;
+        min-height: 100vh;
+        min-height: 100dvh;
+        overflow: visible;
     }
 
     .sidebar {
         width: 100%;
         flex-direction: row;
         flex-wrap: wrap;
-        align-items: center;
+        align-items: stretch;
+        min-height: 0;
+        max-height: none;
+        overflow: visible;
     }
 
     .sidebar .brand {
@@ -456,6 +483,11 @@ body {
         flex-wrap: wrap;
         width: 100%;
         border-top: 1px solid rgba(255, 255, 255, 0.06);
+        flex: 1 1 auto;
+        min-height: 0;
+        max-height: min(50vh, 20rem);
+        overflow-y: auto;
+        overflow-x: hidden;
     }
 
     .nav-group-label {
@@ -467,6 +499,12 @@ body {
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
+    }
+
+    .main {
+        overflow-y: visible;
+        flex: 1 1 auto;
+        min-height: 0;
     }
 }
 
