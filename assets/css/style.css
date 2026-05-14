@@ -280,6 +280,22 @@ body {
     background: var(--sidebar);
 }
 
+.sidebar-footer-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.sidebar-footer-actions .btn {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 0;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.8rem;
+    padding-inline: 0.4rem;
+}
+
 .sidebar-footer .btn {
     color: var(--sidebar-text);
 }
@@ -512,8 +528,20 @@ body {
     .sidebar-footer {
         width: 100%;
         flex-direction: row;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .sidebar-footer-actions {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+        min-width: 0;
+    }
+
+    .sidebar-footer-actions .btn {
+        flex: 0 1 auto;
     }
 
     .main {

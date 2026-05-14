@@ -28,7 +28,6 @@ function cmc_layout_start(string $title, array $user, ?array $navExtra = null): 
             <div class="brand"><span class="brand-mark"></span><span><?= $app ?></span></div>
             <nav class="nav">
                 <a class="nav-item" href="<?= e(cmc_url('dashboard.php')) ?>">Dashboard</a>
-                <a class="nav-item" href="<?= e(cmc_url('account/password.php')) ?>">Change password</a>
                 <?php if (in_array($user['role'], ['member', 'hod', 'sde', 'admin'], true)) : ?>
                     <div class="nav-group-label">Complaints</div>
                     <?php if (in_array($user['role'], ['member', 'hod'], true)) : ?>
@@ -60,7 +59,10 @@ function cmc_layout_start(string $title, array $user, ?array $navExtra = null): 
                     <span class="user-name"><?= e($user['full_name']) ?></span>
                     <span class="user-role"><?= e(strtoupper($user['role'])) ?></span>
                 </div>
-                <a class="btn btn-ghost btn-sm" href="<?= e(cmc_url('logout.php')) ?>">Sign out</a>
+                <div class="sidebar-footer-actions">
+                    <a class="btn btn-ghost btn-sm" href="<?= e(cmc_url('account/password.php')) ?>">Change password</a>
+                    <a class="btn btn-ghost btn-sm" href="<?= e(cmc_url('logout.php')) ?>">Sign out</a>
+                </div>
             </div>
         </aside>
         <main class="main">
