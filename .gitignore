@@ -1,0 +1,5 @@
+/data/*.sqlite
+/data/*.sqlite-journal
+/data/uploads/*
+!/data/uploads/.htaccess
+/config.local.php
