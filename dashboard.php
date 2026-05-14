@@ -351,14 +351,64 @@ if ($role === 'member') {
     $sumInv = array_sum($invKinds);
     $billSums = cmc_dashboard_billing_subtotal_sums($pdo);
     $sumBillParts = $billSums['material'] + $billSums['labour'] + $billSums['equipment'];
-    $ffClasses = [
-        'planning' => 'segff-plan',
-        'in_progress' => 'segff-run',
-        'on_hold' => 'segff-hold',
-        'completed' => 'segff-done',
-        'cancelled' => 'segff-can',
+
+    $sdeChartFulfillment = null;
+    if ($sumFul > 0) {
+        $fl = [];
+        $fd = [];
+        $fc = [];
+        $fColors = [
+            'planning' => '#60a5fa',
+            'in_progress' => '#34d399',
+            'on_hold' => '#fbbf24',
+            'completed' => '#0d9488',
+            'cancelled' => '#94a3b8',
+        ];
+        foreach (['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'] as $k) {
+            $n = (int) ($fulMixSde[$k] ?? 0);
+            if ($n < 1) {
+                continue;
+            }
+            $fl[] = cmc_fulfillment_work_status_label($k);
+            $fd[] = $n;
+            $fc[] = $fColors[$k] ?? '#64748b';
+        }
+        if ($fd !== []) {
+            $sdeChartFulfillment = ['labels' => $fl, 'data' => $fd, 'backgroundColor' => $fc];
+        }
+    }
+
+    $sdeChartResources = null;
+    if ($sumInv > 0) {
+        $rk = ['material', 'equipment', 'worker'];
+        $rl = [];
+        $rd = [];
+        foreach ($rk as $k) {
+            $rl[] = cmc_resource_kind_label($k);
+            $rd[] = (int) ($invKinds[$k] ?? 0);
+        }
+        $sdeChartResources = [
+            'labels' => $rl,
+            'data' => $rd,
+            'backgroundColor' => ['#64748b', '#7c3aed', '#0284c7'],
+        ];
+    }
+
+    $sdeChartBilling = null;
+    if ($sumBillParts > 0) {
+        $sdeChartBilling = [
+            'labels' => ['Materials', 'Labour', 'Equipment'],
+            'data' => [$billSums['material'], $billSums['labour'], $billSums['equipment']],
+            'backgroundColor' => ['#22c55e', '#6366f1', '#f97316'],
+        ];
+    }
+
+    $sdeChartsPayload = [
+        'fulfillment' => $sdeChartFulfillment,
+        'resources' => $sdeChartResources,
+        'billing' => $sdeChartBilling,
     ];
-    $resSegClass = ['material' => 'seg-res-mat', 'equipment' => 'seg-res-eq', 'worker' => 'seg-res-worker'];
+    $sdeChartsNeedJs = $sdeChartFulfillment !== null || $sdeChartResources !== null || $sdeChartBilling !== null;
     ?>
     <section class="card dashboard-snapshot">
         <header class="dashboard-snapshot-header">
@@ -413,28 +463,12 @@ if ($role === 'member') {
                 <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('fulfillment/index.php')) ?>">Open</a>
             </div>
             <p class="muted small dashboard-mini-chart-lead">Work status for fulfillments where you are the assigned SDE.</p>
-            <?php if ($sumFul < 1) : ?>
+            <?php if ($sdeChartFulfillment === null) : ?>
                 <p class="muted small">No fulfillment records yet. Start from an approved complaint.</p>
             <?php else : ?>
-                <div class="dashboard-stackbar dashboard-stackbar-compact" role="img" aria-label="Fulfillment by status">
-                    <?php foreach ($fulMixSde as $bucket => $n) : ?>
-                        <?php if ($n > 0) : ?>
-                            <span class="dashboard-stackbar-seg <?= e($ffClasses[$bucket] ?? 'segff-plan') ?>" style="flex: <?= (int) $n ?> 1 0; min-width: 8px;" title="<?= e(cmc_fulfillment_work_status_label($bucket)) ?>: <?= (int) $n ?>"></span>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
+                <div class="dashboard-chart-wrap" role="img" aria-label="Fulfillment by status">
+                    <canvas id="sde-chart-fulfillment"></canvas>
                 </div>
-                <ul class="dashboard-mini-legend">
-                    <?php foreach ($fulMixSde as $bucket => $n) : ?>
-                        <?php if ($n < 1) {
-                            continue;
-                        } ?>
-                        <li>
-                            <span class="dashboard-legend-dot <?= e($ffClasses[$bucket] ?? 'segff-plan') ?>"></span>
-                            <span><?= e(cmc_fulfillment_work_status_label($bucket)) ?></span>
-                            <strong><?= (int) $n ?></strong>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
             <?php endif; ?>
         </div>
 
@@ -444,28 +478,12 @@ if ($role === 'member') {
                 <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('resources/index.php')) ?>">Open</a>
             </div>
             <p class="muted small dashboard-mini-chart-lead">Inventory items by type (cell catalogue).</p>
-            <?php if ($sumInv < 1) : ?>
+            <?php if ($sdeChartResources === null) : ?>
                 <p class="muted small">No inventory items yet.</p>
             <?php else : ?>
-                <div class="dashboard-stackbar dashboard-stackbar-compact" role="img" aria-label="Resources by kind">
-                    <?php foreach ($invKinds as $kind => $n) : ?>
-                        <?php if ($n > 0) : ?>
-                            <span class="dashboard-stackbar-seg <?= e($resSegClass[$kind] ?? 'seg-res-mat') ?>" style="flex: <?= (int) $n ?> 1 0; min-width: 8px;" title="<?= e(cmc_resource_kind_label($kind)) ?>: <?= (int) $n ?>"></span>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
+                <div class="dashboard-chart-wrap dashboard-chart-wrap-bar" role="img" aria-label="Resources by kind">
+                    <canvas id="sde-chart-resources"></canvas>
                 </div>
-                <ul class="dashboard-mini-legend">
-                    <?php foreach ($invKinds as $kind => $n) : ?>
-                        <?php if ($n < 1) {
-                            continue;
-                        } ?>
-                        <li>
-                            <span class="dashboard-legend-dot <?= e($resSegClass[$kind] ?? 'seg-res-mat') ?>"></span>
-                            <span><?= e(cmc_resource_kind_label($kind)) ?></span>
-                            <strong><?= (int) $n ?></strong>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
             <?php endif; ?>
         </div>
 
@@ -480,50 +498,128 @@ if ($role === 'member') {
             <?php elseif ($sumBillParts <= 0) : ?>
                 <p class="muted small"><?= (int) $billSums['bills'] ?> bill(s); subtotal lines are zero — open billing for detail.</p>
             <?php else : ?>
-                <?php
-                $billFlex = static function (float $part, float $sum): int {
-                    if ($sum <= 0 || $part <= 0) {
-                        return 0;
-                    }
-
-                    return (int) max(1, round(1000 * $part / $sum));
-                };
-                $wMat = $billFlex($billSums['material'], $sumBillParts);
-                $wLab = $billFlex($billSums['labour'], $sumBillParts);
-                $wEq = $billFlex($billSums['equipment'], $sumBillParts);
-                ?>
-                <div class="dashboard-stackbar dashboard-stackbar-compact" role="img" aria-label="Billing subtotals mix">
-                    <?php if ($wMat > 0) : ?>
-                        <span class="dashboard-stackbar-seg seg-bill-mat" style="flex: <?= $wMat ?> 1 0; min-width: 8px;" title="Materials"></span>
-                    <?php endif; ?>
-                    <?php if ($wLab > 0) : ?>
-                        <span class="dashboard-stackbar-seg seg-bill-lab" style="flex: <?= $wLab ?> 1 0; min-width: 8px;" title="Labour"></span>
-                    <?php endif; ?>
-                    <?php if ($wEq > 0) : ?>
-                        <span class="dashboard-stackbar-seg seg-bill-eq" style="flex: <?= $wEq ?> 1 0; min-width: 8px;" title="Equipment"></span>
-                    <?php endif; ?>
+                <div class="dashboard-chart-wrap" role="img" aria-label="Billing subtotals mix">
+                    <canvas id="sde-chart-billing"></canvas>
                 </div>
-                <ul class="dashboard-mini-legend">
-                    <li>
-                        <span class="dashboard-legend-dot seg-bill-mat"></span>
-                        <span>Materials</span>
-                        <strong><?= e(cmc_resource_format_money($billSums['material'])) ?></strong>
-                    </li>
-                    <li>
-                        <span class="dashboard-legend-dot seg-bill-lab"></span>
-                        <span>Labour</span>
-                        <strong><?= e(cmc_resource_format_money($billSums['labour'])) ?></strong>
-                    </li>
-                    <li>
-                        <span class="dashboard-legend-dot seg-bill-eq"></span>
-                        <span>Equipment</span>
-                        <strong><?= e(cmc_resource_format_money($billSums['equipment'])) ?></strong>
-                    </li>
-                    <li class="dashboard-mini-legend-meta muted small"><?= (int) $billSums['bills'] ?> bill(s) total</li>
-                </ul>
+                <p class="muted small dashboard-mini-foot"><?= (int) $billSums['bills'] ?> bill(s) total</p>
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if ($sdeChartsNeedJs) : ?>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+        <script>
+        (function () {
+            var payload = <?= json_encode($sdeChartsPayload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_UNESCAPED_UNICODE) ?>;
+            if (typeof Chart === 'undefined' || !payload) {
+                return;
+            }
+            function moneyFmt(v) {
+                var n = Number(v);
+                if (!isFinite(n)) {
+                    n = 0;
+                }
+                var s = n.toFixed(2);
+                var parts = s.split('.');
+                parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                return parts.join('.');
+            }
+            var base = { responsive: true, maintainAspectRatio: false };
+            if (payload.fulfillment) {
+                var el = document.getElementById('sde-chart-fulfillment');
+                if (el) {
+                    new Chart(el, {
+                        type: 'doughnut',
+                        data: {
+                            labels: payload.fulfillment.labels,
+                            datasets: [{
+                                data: payload.fulfillment.data,
+                                backgroundColor: payload.fulfillment.backgroundColor,
+                                borderWidth: 1,
+                                borderColor: 'rgba(15, 23, 42, 0.35)',
+                            }],
+                        },
+                        options: Object.assign({}, base, {
+                            plugins: {
+                                legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (ctx) {
+                                            var t = Number(ctx.raw);
+                                            var sum = ctx.dataset.data.reduce(function (a, b) { return a + Number(b); }, 0);
+                                            var pct = sum ? Math.round((100 * t) / sum) : 0;
+                                            return ctx.label + ': ' + t + ' (' + pct + '%)';
+                                        },
+                                    },
+                                },
+                            },
+                        }),
+                    });
+                }
+            }
+            if (payload.resources) {
+                var elR = document.getElementById('sde-chart-resources');
+                if (elR) {
+                    new Chart(elR, {
+                        type: 'bar',
+                        data: {
+                            labels: payload.resources.labels,
+                            datasets: [{
+                                label: 'Items',
+                                data: payload.resources.data,
+                                backgroundColor: payload.resources.backgroundColor,
+                                borderWidth: 1,
+                                borderColor: 'rgba(15, 23, 42, 0.25)',
+                            }],
+                        },
+                        options: Object.assign({}, base, {
+                            plugins: {
+                                legend: { display: false },
+                                tooltip: { callbacks: { label: function (ctx) { var y = ctx.parsed && ctx.parsed.y != null ? ctx.parsed.y : Number(ctx.raw); return y + ' items'; } } },
+                            },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+                                y: { beginAtZero: true, ticks: { precision: 0, font: { size: 11 } } },
+                            },
+                        }),
+                    });
+                }
+            }
+            if (payload.billing) {
+                var elB = document.getElementById('sde-chart-billing');
+                if (elB) {
+                    new Chart(elB, {
+                        type: 'pie',
+                        data: {
+                            labels: payload.billing.labels,
+                            datasets: [{
+                                data: payload.billing.data,
+                                backgroundColor: payload.billing.backgroundColor,
+                                borderWidth: 1,
+                                borderColor: 'rgba(15, 23, 42, 0.35)',
+                            }],
+                        },
+                        options: Object.assign({}, base, {
+                            plugins: {
+                                legend: { position: 'bottom', labels: { boxWidth: 10, padding: 8, font: { size: 11 } } },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function (ctx) {
+                                            var v = Number(ctx.raw);
+                                            var sum = ctx.dataset.data.reduce(function (a, b) { return a + Number(b); }, 0);
+                                            var pct = sum ? Math.round((100 * v) / sum) : 0;
+                                            return ctx.label + ': ' + moneyFmt(v) + ' (' + pct + '%)';
+                                        },
+                                    },
+                                },
+                            },
+                        }),
+                    });
+                }
+            }
+        })();
+        </script>
+    <?php endif; ?>
 
     <section class="card dashboard-recent">
         <div class="dashboard-recent-head">

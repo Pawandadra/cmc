@@ -1039,6 +1039,24 @@ body {
     margin: 0 0 0.75rem;
 }
 
+.dashboard-chart-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 200px;
+    max-height: 260px;
+    margin-top: 0.25rem;
+}
+
+.dashboard-chart-wrap-bar {
+    min-height: 190px;
+    max-height: 220px;
+}
+
+.dashboard-mini-foot {
+    margin: 0.65rem 0 0;
+}
+
 .dashboard-stackbar-compact {
     height: 11px;
     border-radius: 6px;
