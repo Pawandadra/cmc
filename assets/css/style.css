@@ -280,6 +280,21 @@ body {
     background: var(--sidebar);
 }
 
+.sidebar-footer .btn {
+    color: var(--sidebar-text);
+}
+
+.sidebar-footer .btn-ghost {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.22);
+    color: var(--sidebar-text);
+}
+
+.sidebar-footer .btn-ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.14);
+    color: var(--sidebar-text);
+}
+
 .user-chip {
     display: flex;
     flex-direction: column;
