@@ -27,120 +27,116 @@ if ($role === 'member') {
     $fulMix = cmc_dashboard_fulfillment_mix_for_scope($pdo, 'raised_by_user_id', $uid);
     $recent = cmc_dashboard_recent_complaints($pdo, 'c.raised_by_user_id = ?', [$uid], 8);
     $by = $stats['by_status'];
-    $rejected = $by['hod_rejected'] + $by['sde_rejected'];
-    $pendingPipe = $by['pending_hod'] + $by['pending_sde'];
-    $statusChart = [
-        'Awaiting HOD' => $by['pending_hod'],
-        'Awaiting SDE' => $by['pending_sde'],
-        'SDE approved' => $by['sde_approved'],
-        'Rejected' => $rejected,
+    $total = (int) $stats['total'];
+    $fulfilled = (int) $stats['fulfilled_completed'];
+    $sumFulMix = array_sum($fulMix);
+    $statusSegs = [
+        ['n' => $by['pending_hod'], 'class' => 'seg-hod', 'href' => 'complaints/index.php?status=pending_hod', 'label' => 'Awaiting HOD'],
+        ['n' => $by['pending_sde'], 'class' => 'seg-sde', 'href' => 'complaints/index.php?status=pending_sde', 'label' => 'Awaiting SDE'],
+        ['n' => $by['sde_approved'], 'class' => 'seg-approved', 'href' => 'complaints/index.php?status=sde_approved', 'label' => 'SDE approved'],
+        ['n' => $by['hod_rejected'], 'class' => 'seg-rej', 'href' => 'complaints/index.php?status=hod_rejected', 'label' => 'Rejected by HOD'],
+        ['n' => $by['sde_rejected'], 'class' => 'seg-rej-sde', 'href' => 'complaints/index.php?status=sde_rejected', 'label' => 'Rejected by SDE'],
     ];
     ?>
-    <div class="dashboard-welcome card">
-        <h2 class="card-title">Welcome, <?= e((string) $user['full_name']) ?></h2>
-        <p class="muted dashboard-welcome-meta">
-            <?= e((string) $user['organisation_name']) ?> · <?= e((string) $user['department_name']) ?>
-        </p>
-        <div class="dashboard-shortcuts">
-            <a class="btn btn-primary" href="<?= e(cmc_url('complaints/create.php')) ?>">Raise a complaint</a>
-            <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">All my complaints</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=pending_hod')) ?>">Awaiting HOD</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=pending_sde')) ?>">Awaiting SDE</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=sde_approved')) ?>">Approved</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=hod_rejected')) ?>">Rejected (HOD)</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=sde_rejected')) ?>">Rejected (SDE)</a>
-        </div>
-    </div>
+    <section class="card dashboard-snapshot">
+        <header class="dashboard-snapshot-header">
+            <div>
+                <h2 class="dashboard-snapshot-title">Welcome, <?= e((string) $user['full_name']) ?></h2>
+                <p class="muted dashboard-snapshot-meta"><?= e((string) $user['organisation_name']) ?> · <?= e((string) $user['department_name']) ?></p>
+            </div>
+            <div class="dashboard-snapshot-actions">
+                <a class="btn btn-primary" href="<?= e(cmc_url('complaints/create.php')) ?>">Raise a complaint</a>
+                <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">My complaints</a>
+            </div>
+        </header>
 
-    <div class="dashboard-stat-grid">
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= (int) $stats['total'] ?></div>
-            <div class="dashboard-stat-label">Total complaints</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-accent">
-            <div class="dashboard-stat-value"><?= $pendingPipe ?></div>
-            <div class="dashboard-stat-label">In progress</div>
-            <div class="dashboard-stat-hint">Awaiting HOD or SDE</div>
-        </div>
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= $by['pending_hod'] ?></div>
-            <div class="dashboard-stat-label">Awaiting HOD</div>
-        </div>
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= $by['pending_sde'] ?></div>
-            <div class="dashboard-stat-label">Awaiting SDE</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-success">
-            <div class="dashboard-stat-value"><?= $by['sde_approved'] ?></div>
-            <div class="dashboard-stat-label">SDE approved</div>
-            <?php if ($stats['approved_with_open_fulfillment'] > 0) : ?>
-                <div class="dashboard-stat-hint"><?= (int) $stats['approved_with_open_fulfillment'] ?> with open fulfillment</div>
-            <?php endif; ?>
-        </div>
-        <div class="dashboard-stat dashboard-stat-teal">
-            <div class="dashboard-stat-value"><?= (int) $stats['fulfilled_completed'] ?></div>
-            <div class="dashboard-stat-label">Fulfilled</div>
-            <div class="dashboard-stat-hint">Fulfillment completed</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-muted">
-            <div class="dashboard-stat-value"><?= $rejected ?></div>
-            <div class="dashboard-stat-label">Rejected</div>
-            <div class="dashboard-stat-hint">HOD or SDE</div>
-        </div>
-    </div>
-
-    <div class="grid-2 dashboard-charts-grid">
-        <section class="card">
-            <h3 class="card-title">Complaints by stage</h3>
-            <?php
-            $chartMax = max($statusChart) ?: 1;
-            foreach ($statusChart as $label => $n) :
-                $pct = $stats['total'] > 0 ? round(100 * $n / $stats['total']) : 0;
-                $w = $chartMax > 0 ? round(100 * $n / $chartMax) : 0;
-                ?>
-                <div class="dashboard-bar-row">
-                    <span class="dashboard-bar-label"><?= e($label) ?></span>
-                    <div class="dashboard-bar-track" title="<?= (int) $n ?> (<?= (int) $pct ?>%)">
-                        <div class="dashboard-bar-fill" style="width: <?= (int) $w ?>%;"></div>
-                    </div>
-                    <span class="dashboard-bar-count"><?= (int) $n ?></span>
+        <div class="dashboard-snapshot-body">
+            <div class="dashboard-snapshot-total" aria-label="Total complaints">
+                <span class="dashboard-snapshot-total-num"><?= $total ?></span>
+                <span class="dashboard-snapshot-total-label"><?= $total === 1 ? 'complaint' : 'complaints' ?></span>
+            </div>
+            <div class="dashboard-snapshot-main">
+                <h3 class="dashboard-snapshot-h">Status</h3>
+                <p class="muted small dashboard-snapshot-lead">Each colour matches a list filter — click a row to open that view.</p>
+                <div class="dashboard-stackbar" role="img" aria-label="Complaints by status">
+                    <?php if ($total < 1) : ?>
+                        <span class="dashboard-stackbar-empty">No complaints yet — raise one to see progress here.</span>
+                    <?php else : ?>
+                        <?php foreach ($statusSegs as $seg) : ?>
+                            <?php if ($seg['n'] > 0) : ?>
+                                <span class="dashboard-stackbar-seg <?= e($seg['class']) ?>" style="flex: <?= (int) $seg['n'] ?> 1 0; min-width: <?= $seg['n'] > 0 ? '8px' : '0' ?>;" title="<?= e($seg['label']) ?>: <?= (int) $seg['n'] ?>"></span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-            <?php endforeach; ?>
-            <?php if ($stats['total'] === 0) : ?>
-                <p class="muted small">You have not raised any complaints yet. Use <strong>Raise a complaint</strong> to get started.</p>
-            <?php endif; ?>
-        </section>
-        <section class="card">
-            <h3 class="card-title">Fulfillment (approved cases)</h3>
-            <?php if ($by['sde_approved'] < 1) : ?>
-                <p class="muted small">Fulfillment tracking appears once the SDE has approved a complaint.</p>
-            <?php elseif ($fulMix === []) : ?>
-                <p class="muted small">No fulfillment record yet — the cell may still be setting up the case.</p>
-            <?php else :
-                $fmMax = max($fulMix) ?: 1;
-                $bucketLabels = [
-                    'pending_setup' => 'Not started',
-                    'planning' => cmc_fulfillment_work_status_label('planning'),
-                    'in_progress' => cmc_fulfillment_work_status_label('in_progress'),
-                    'on_hold' => cmc_fulfillment_work_status_label('on_hold'),
-                    'completed' => cmc_fulfillment_work_status_label('completed'),
-                    'cancelled' => cmc_fulfillment_work_status_label('cancelled'),
-                ];
-                foreach ($fulMix as $bucket => $n) :
-                    $bl = $bucketLabels[$bucket] ?? $bucket;
-                    $w = $fmMax > 0 ? round(100 * $n / $fmMax) : 0;
-                    ?>
-                    <div class="dashboard-bar-row">
-                        <span class="dashboard-bar-label"><?= e($bl) ?></span>
-                        <div class="dashboard-bar-track dashboard-bar-track-teal">
-                            <div class="dashboard-bar-fill dashboard-bar-fill-teal" style="width: <?= (int) $w ?>%;"></div>
+                <ul class="dashboard-legend">
+                    <?php foreach ($statusSegs as $seg) : ?>
+                        <li>
+                            <a class="dashboard-legend-link" href="<?= e(cmc_url($seg['href'])) ?>">
+                                <span class="dashboard-legend-dot <?= e($seg['class']) ?>"></span>
+                                <span class="dashboard-legend-label"><?= e($seg['label']) ?></span>
+                                <span class="dashboard-legend-count"><?= (int) $seg['n'] ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                    <li class="dashboard-legend-extra">
+                        <span class="dashboard-legend-dot seg-fulfilled"></span>
+                        <span class="dashboard-legend-label">Delivered (fulfillment completed)</span>
+                        <span class="dashboard-legend-count"><?= $fulfilled ?></span>
+                    </li>
+                </ul>
+                <?php if ($by['sde_approved'] > 0 && (int) $stats['approved_with_open_fulfillment'] > 0) : ?>
+                    <p class="muted small dashboard-snapshot-note">
+                        <?= (int) $stats['approved_with_open_fulfillment'] ?> approved <?= (int) $stats['approved_with_open_fulfillment'] === 1 ? 'case has' : 'cases have' ?> open fulfillment work.
+                    </p>
+                <?php endif; ?>
+
+                <?php if ($by['sde_approved'] > 0) : ?>
+                    <div class="dashboard-snapshot-divider"></div>
+                    <h3 class="dashboard-snapshot-h">Fulfillment (SDE-approved)</h3>
+                    <?php if ($sumFulMix < 1) : ?>
+                        <p class="muted small">The cell has not attached a fulfillment plan yet, or it is still being set up.</p>
+                    <?php else : ?>
+                        <div class="dashboard-stackbar dashboard-stackbar-ful" role="img" aria-label="Fulfillment mix">
+                            <?php
+                            $ffClasses = [
+                                'pending_setup' => 'segff-setup',
+                                'planning' => 'segff-plan',
+                                'in_progress' => 'segff-run',
+                                'on_hold' => 'segff-hold',
+                                'completed' => 'segff-done',
+                                'cancelled' => 'segff-can',
+                            ];
+                            foreach ($fulMix as $bucket => $n) :
+                                $cls = $ffClasses[$bucket] ?? 'segff-plan';
+                                ?>
+                                <span class="dashboard-stackbar-seg <?= e($cls) ?>" style="flex: <?= (int) $n ?> 1 0; min-width: <?= $n > 0 ? '8px' : '0' ?>;" title="<?= e((string) $bucket) ?>: <?= (int) $n ?>"></span>
+                            <?php endforeach; ?>
                         </div>
-                        <span class="dashboard-bar-count"><?= (int) $n ?></span>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </section>
-    </div>
+                        <ul class="dashboard-legend dashboard-legend-compact">
+                            <?php
+                            $bucketLabels = [
+                                'pending_setup' => 'Not started',
+                                'planning' => cmc_fulfillment_work_status_label('planning'),
+                                'in_progress' => cmc_fulfillment_work_status_label('in_progress'),
+                                'on_hold' => cmc_fulfillment_work_status_label('on_hold'),
+                                'completed' => cmc_fulfillment_work_status_label('completed'),
+                                'cancelled' => cmc_fulfillment_work_status_label('cancelled'),
+                            ];
+                            foreach ($fulMix as $bucket => $n) :
+                                ?>
+                                <li>
+                                    <span class="dashboard-legend-dot <?= e($ffClasses[$bucket] ?? 'segff-plan') ?>"></span>
+                                    <span class="dashboard-legend-label"><?= e($bucketLabels[$bucket] ?? $bucket) ?></span>
+                                    <span class="dashboard-legend-count"><?= (int) $n ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </section>
 
     <section class="card dashboard-recent">
         <div class="dashboard-recent-head">
@@ -183,115 +179,118 @@ if ($role === 'member') {
     $fulMix = cmc_dashboard_fulfillment_mix_for_scope($pdo, 'department_id', $deptId);
     $recent = cmc_dashboard_recent_complaints($pdo, 'c.department_id = ?', [$deptId], 8);
     $by = $stats['by_status'];
-    $rejected = $by['hod_rejected'] + $by['sde_rejected'];
-    $pendingPipe = $by['pending_hod'] + $by['pending_sde'];
-    $statusChart = [
-        'Awaiting HOD' => $by['pending_hod'],
-        'Awaiting SDE' => $by['pending_sde'],
-        'SDE approved' => $by['sde_approved'],
-        'Rejected' => $rejected,
+    $total = (int) $stats['total'];
+    $fulfilled = (int) $stats['fulfilled_completed'];
+    $sumFulMix = array_sum($fulMix);
+    $statusSegs = [
+        ['n' => $by['pending_hod'], 'class' => 'seg-hod', 'href' => 'complaints/index.php?status=pending_hod', 'label' => 'Awaiting HOD'],
+        ['n' => $by['pending_sde'], 'class' => 'seg-sde', 'href' => 'complaints/index.php?status=pending_sde', 'label' => 'Awaiting SDE'],
+        ['n' => $by['sde_approved'], 'class' => 'seg-approved', 'href' => 'complaints/index.php?status=sde_approved', 'label' => 'SDE approved'],
+        ['n' => $by['hod_rejected'], 'class' => 'seg-rej', 'href' => 'complaints/index.php?status=hod_rejected', 'label' => 'Rejected by HOD'],
+        ['n' => $by['sde_rejected'], 'class' => 'seg-rej-sde', 'href' => 'complaints/index.php?status=sde_rejected', 'label' => 'Rejected by SDE'],
     ];
     ?>
-    <div class="dashboard-welcome card">
-        <h2 class="card-title">Department overview</h2>
-        <p class="muted dashboard-welcome-meta">
-            <strong><?= e((string) $user['department_name']) ?></strong> · <?= e((string) $user['organisation_name']) ?>
-        </p>
-        <div class="dashboard-shortcuts">
-            <a class="btn btn-primary" href="<?= e(cmc_url('complaints/index.php')) ?>">Department complaints</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=pending_hod')) ?>">Needs your action</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=pending_sde')) ?>">With SDE</a>
-            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=sde_approved')) ?>">Approved</a>
-        </div>
-    </div>
+    <section class="card dashboard-snapshot">
+        <header class="dashboard-snapshot-header">
+            <div>
+                <h2 class="dashboard-snapshot-title">Department overview</h2>
+                <p class="muted dashboard-snapshot-meta"><strong><?= e((string) $user['department_name']) ?></strong> · <?= e((string) $user['organisation_name']) ?></p>
+            </div>
+            <div class="dashboard-snapshot-actions">
+                <a class="btn btn-primary" href="<?= e(cmc_url('complaints/index.php')) ?>">All complaints</a>
+                <?php if ($by['pending_hod'] > 0) : ?>
+                    <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/index.php?status=pending_hod')) ?>">Needs your action (<?= (int) $by['pending_hod'] ?>)</a>
+                <?php endif; ?>
+            </div>
+        </header>
 
-    <div class="dashboard-stat-grid">
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= (int) $stats['total'] ?></div>
-            <div class="dashboard-stat-label">Total in department</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-accent">
-            <div class="dashboard-stat-value"><?= $pendingPipe ?></div>
-            <div class="dashboard-stat-label">In progress</div>
-            <div class="dashboard-stat-hint">HOD or SDE queue</div>
-        </div>
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= $by['pending_hod'] ?></div>
-            <div class="dashboard-stat-label">Awaiting HOD</div>
-        </div>
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= $by['pending_sde'] ?></div>
-            <div class="dashboard-stat-label">Awaiting SDE</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-success">
-            <div class="dashboard-stat-value"><?= $by['sde_approved'] ?></div>
-            <div class="dashboard-stat-label">SDE approved</div>
-            <?php if ($stats['approved_with_open_fulfillment'] > 0) : ?>
-                <div class="dashboard-stat-hint"><?= (int) $stats['approved_with_open_fulfillment'] ?> with open fulfillment</div>
-            <?php endif; ?>
-        </div>
-        <div class="dashboard-stat dashboard-stat-teal">
-            <div class="dashboard-stat-value"><?= (int) $stats['fulfilled_completed'] ?></div>
-            <div class="dashboard-stat-label">Fulfilled</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-muted">
-            <div class="dashboard-stat-value"><?= $rejected ?></div>
-            <div class="dashboard-stat-label">Rejected</div>
-        </div>
-    </div>
-
-    <div class="grid-2 dashboard-charts-grid">
-        <section class="card">
-            <h3 class="card-title">Complaints by stage</h3>
-            <?php
-            $chartMax = max($statusChart) ?: 1;
-            foreach ($statusChart as $label => $n) :
-                $pct = $stats['total'] > 0 ? round(100 * $n / $stats['total']) : 0;
-                $w = $chartMax > 0 ? round(100 * $n / $chartMax) : 0;
-                ?>
-                <div class="dashboard-bar-row">
-                    <span class="dashboard-bar-label"><?= e($label) ?></span>
-                    <div class="dashboard-bar-track" title="<?= (int) $n ?> (<?= (int) $pct ?>%)">
-                        <div class="dashboard-bar-fill" style="width: <?= (int) $w ?>%;"></div>
-                    </div>
-                    <span class="dashboard-bar-count"><?= (int) $n ?></span>
+        <div class="dashboard-snapshot-body">
+            <div class="dashboard-snapshot-total" aria-label="Total complaints in department">
+                <span class="dashboard-snapshot-total-num"><?= $total ?></span>
+                <span class="dashboard-snapshot-total-label"><?= $total === 1 ? 'complaint' : 'complaints' ?></span>
+            </div>
+            <div class="dashboard-snapshot-main">
+                <h3 class="dashboard-snapshot-h">Status</h3>
+                <p class="muted small dashboard-snapshot-lead">Click a row to filter the department list.</p>
+                <div class="dashboard-stackbar" role="img" aria-label="Complaints by status">
+                    <?php if ($total < 1) : ?>
+                        <span class="dashboard-stackbar-empty">No complaints in this department yet.</span>
+                    <?php else : ?>
+                        <?php foreach ($statusSegs as $seg) : ?>
+                            <?php if ($seg['n'] > 0) : ?>
+                                <span class="dashboard-stackbar-seg <?= e($seg['class']) ?>" style="flex: <?= (int) $seg['n'] ?> 1 0; min-width: <?= $seg['n'] > 0 ? '8px' : '0' ?>;" title="<?= e($seg['label']) ?>: <?= (int) $seg['n'] ?>"></span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-            <?php endforeach; ?>
-            <?php if ($stats['total'] === 0) : ?>
-                <p class="muted small">No complaints in this department yet.</p>
-            <?php endif; ?>
-        </section>
-        <section class="card">
-            <h3 class="card-title">Fulfillment (approved)</h3>
-            <?php if ($by['sde_approved'] < 1) : ?>
-                <p class="muted small">Nothing SDE-approved yet.</p>
-            <?php elseif ($fulMix === []) : ?>
-                <p class="muted small">No fulfillment rows yet for approved cases.</p>
-            <?php else :
-                $fmMax = max($fulMix) ?: 1;
-                $bucketLabels = [
-                    'pending_setup' => 'Not started',
-                    'planning' => cmc_fulfillment_work_status_label('planning'),
-                    'in_progress' => cmc_fulfillment_work_status_label('in_progress'),
-                    'on_hold' => cmc_fulfillment_work_status_label('on_hold'),
-                    'completed' => cmc_fulfillment_work_status_label('completed'),
-                    'cancelled' => cmc_fulfillment_work_status_label('cancelled'),
-                ];
-                foreach ($fulMix as $bucket => $n) :
-                    $bl = $bucketLabels[$bucket] ?? $bucket;
-                    $w = $fmMax > 0 ? round(100 * $n / $fmMax) : 0;
-                    ?>
-                    <div class="dashboard-bar-row">
-                        <span class="dashboard-bar-label"><?= e($bl) ?></span>
-                        <div class="dashboard-bar-track dashboard-bar-track-teal">
-                            <div class="dashboard-bar-fill dashboard-bar-fill-teal" style="width: <?= (int) $w ?>%;"></div>
+                <ul class="dashboard-legend">
+                    <?php foreach ($statusSegs as $seg) : ?>
+                        <li>
+                            <a class="dashboard-legend-link" href="<?= e(cmc_url($seg['href'])) ?>">
+                                <span class="dashboard-legend-dot <?= e($seg['class']) ?>"></span>
+                                <span class="dashboard-legend-label"><?= e($seg['label']) ?></span>
+                                <span class="dashboard-legend-count"><?= (int) $seg['n'] ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                    <li class="dashboard-legend-extra">
+                        <span class="dashboard-legend-dot seg-fulfilled"></span>
+                        <span class="dashboard-legend-label">Delivered (fulfillment completed)</span>
+                        <span class="dashboard-legend-count"><?= $fulfilled ?></span>
+                    </li>
+                </ul>
+                <?php if ($by['sde_approved'] > 0 && (int) $stats['approved_with_open_fulfillment'] > 0) : ?>
+                    <p class="muted small dashboard-snapshot-note">
+                        <?= (int) $stats['approved_with_open_fulfillment'] ?> approved <?= (int) $stats['approved_with_open_fulfillment'] === 1 ? 'case has' : 'cases have' ?> open fulfillment work.
+                    </p>
+                <?php endif; ?>
+
+                <?php if ($by['sde_approved'] > 0) : ?>
+                    <div class="dashboard-snapshot-divider"></div>
+                    <h3 class="dashboard-snapshot-h">Fulfillment (SDE-approved)</h3>
+                    <?php if ($sumFulMix < 1) : ?>
+                        <p class="muted small">No fulfillment rows yet for approved cases.</p>
+                    <?php else : ?>
+                        <div class="dashboard-stackbar dashboard-stackbar-ful" role="img" aria-label="Fulfillment mix">
+                            <?php
+                            $ffClasses = [
+                                'pending_setup' => 'segff-setup',
+                                'planning' => 'segff-plan',
+                                'in_progress' => 'segff-run',
+                                'on_hold' => 'segff-hold',
+                                'completed' => 'segff-done',
+                                'cancelled' => 'segff-can',
+                            ];
+                            foreach ($fulMix as $bucket => $n) :
+                                $cls = $ffClasses[$bucket] ?? 'segff-plan';
+                                ?>
+                                <span class="dashboard-stackbar-seg <?= e($cls) ?>" style="flex: <?= (int) $n ?> 1 0; min-width: <?= $n > 0 ? '8px' : '0' ?>;"></span>
+                            <?php endforeach; ?>
                         </div>
-                        <span class="dashboard-bar-count"><?= (int) $n ?></span>
-                    </div>
-                <?php endforeach; ?>
-            <?php endif; ?>
-        </section>
-    </div>
+                        <ul class="dashboard-legend dashboard-legend-compact">
+                            <?php
+                            $bucketLabels = [
+                                'pending_setup' => 'Not started',
+                                'planning' => cmc_fulfillment_work_status_label('planning'),
+                                'in_progress' => cmc_fulfillment_work_status_label('in_progress'),
+                                'on_hold' => cmc_fulfillment_work_status_label('on_hold'),
+                                'completed' => cmc_fulfillment_work_status_label('completed'),
+                                'cancelled' => cmc_fulfillment_work_status_label('cancelled'),
+                            ];
+                            foreach ($fulMix as $bucket => $n) :
+                                ?>
+                                <li>
+                                    <span class="dashboard-legend-dot <?= e($ffClasses[$bucket] ?? 'segff-plan') ?>"></span>
+                                    <span class="dashboard-legend-label"><?= e($bucketLabels[$bucket] ?? $bucket) ?></span>
+                                    <span class="dashboard-legend-count"><?= (int) $n ?></span>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+    </section>
 
     <section class="card dashboard-recent">
         <div class="dashboard-recent-head">
@@ -333,188 +332,199 @@ if ($role === 'member') {
 } elseif ($role === 'sde') {
     $sq = cmc_dashboard_sde_queue_stats($pdo);
     $bs = $sq['by_status'];
+    $total = (int) $sq['total'];
     $recent = cmc_dashboard_recent_complaints(
         $pdo,
         "c.status IN ('pending_sde', 'sde_approved', 'sde_rejected')",
         [],
         8
     );
-    $chart = ['Awaiting SDE' => $bs['pending_sde'], 'SDE approved' => $bs['sde_approved'], 'Rejected by SDE' => $bs['sde_rejected']];
+    $segs = [
+        ['n' => $bs['pending_sde'], 'class' => 'seg-sde', 'href' => 'complaints/index.php?status=pending_sde', 'label' => 'Awaiting your review'],
+        ['n' => $bs['sde_approved'], 'class' => 'seg-approved', 'href' => 'complaints/index.php?status=sde_approved', 'label' => 'Approved'],
+        ['n' => $bs['sde_rejected'], 'class' => 'seg-rej-sde', 'href' => 'complaints/index.php?status=sde_rejected', 'label' => 'Rejected'],
+    ];
     ?>
-    <div class="dashboard-welcome card">
-        <h2 class="card-title">Cell queue</h2>
-        <p class="muted">Review forwarded complaints, approve or reject, then use fulfillment and resources as needed.</p>
-        <div class="dashboard-shortcuts">
-            <a class="btn btn-primary" href="<?= e(cmc_url('complaints/index.php')) ?>">Complaint queue</a>
-            <a class="btn btn-ghost" href="<?= e(cmc_url('fulfillment/index.php')) ?>">Fulfillment work</a>
-            <a class="btn btn-ghost" href="<?= e(cmc_url('resources/index.php')) ?>">Resources</a>
-            <a class="btn btn-ghost" href="<?= e(cmc_url('billing/index.php')) ?>">Billing</a>
-        </div>
-    </div>
-    <div class="dashboard-stat-grid dashboard-stat-grid-4">
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= (int) $sq['total'] ?></div>
-            <div class="dashboard-stat-label">In cell scope</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-accent">
-            <div class="dashboard-stat-value"><?= $bs['pending_sde'] ?></div>
-            <div class="dashboard-stat-label">Awaiting your review</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-success">
-            <div class="dashboard-stat-value"><?= $bs['sde_approved'] ?></div>
-            <div class="dashboard-stat-label">Approved</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-muted">
-            <div class="dashboard-stat-value"><?= $bs['sde_rejected'] ?></div>
-            <div class="dashboard-stat-label">Rejected</div>
-        </div>
-    </div>
-    <div class="grid-2">
-        <section class="card">
-            <h3 class="card-title">Queue mix</h3>
-            <?php
-            $cm = max($chart) ?: 1;
-            foreach ($chart as $label => $n) :
-                $w = $cm > 0 ? round(100 * $n / $cm) : 0;
-                ?>
-                <div class="dashboard-bar-row">
-                    <span class="dashboard-bar-label"><?= e($label) ?></span>
-                    <div class="dashboard-bar-track">
-                        <div class="dashboard-bar-fill" style="width: <?= (int) $w ?>%;"></div>
-                    </div>
-                    <span class="dashboard-bar-count"><?= (int) $n ?></span>
-                </div>
-            <?php endforeach; ?>
-        </section>
-        <section class="card dashboard-recent">
-            <div class="dashboard-recent-head">
-                <h3 class="card-title">Recently updated</h3>
-                <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">View all</a>
+    <section class="card dashboard-snapshot">
+        <header class="dashboard-snapshot-header">
+            <div>
+                <h2 class="dashboard-snapshot-title">Cell queue</h2>
+                <p class="muted dashboard-snapshot-meta">Review, approve or reject — then fulfillment, resources, and billing.</p>
             </div>
-            <?php if ($recent === []) : ?>
-                <p class="muted">No complaints in the cell queue.</p>
-            <?php else : ?>
-                <div class="table-wrap">
-                    <table class="table table-compact">
-                        <thead>
-                            <tr>
-                                <th>Ref</th>
-                                <th>Subject</th>
-                                <th>Dept</th>
-                                <th>Status</th>
-                                <th class="th-actions"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($recent as $r) : ?>
-                                <tr>
-                                    <td><code class="dashboard-ref"><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
-                                    <td><?= e((string) ($r['subject'] ?? '')) ?></td>
-                                    <td class="small muted"><?= e((string) ($r['department_name'] ?? '')) ?></td>
-                                    <td><span class="pill pill-soft"><?= e(cmc_complaint_status_label((string) ($r['status'] ?? ''))) ?></span></td>
-                                    <td class="td-actions"><a class="btn btn-sm btn-ghost" href="<?= e(cmc_dashboard_complaint_href($r)) ?>">Open</a></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+            <div class="dashboard-snapshot-actions">
+                <a class="btn btn-primary" href="<?= e(cmc_url('complaints/index.php')) ?>">Complaint queue</a>
+                <a class="btn btn-ghost" href="<?= e(cmc_url('fulfillment/index.php')) ?>">Fulfillment</a>
+                <a class="btn btn-ghost" href="<?= e(cmc_url('resources/index.php')) ?>">Resources</a>
+                <a class="btn btn-ghost" href="<?= e(cmc_url('billing/index.php')) ?>">Billing</a>
+            </div>
+        </header>
+        <div class="dashboard-snapshot-body dashboard-snapshot-body-sde">
+            <div class="dashboard-snapshot-total">
+                <span class="dashboard-snapshot-total-num"><?= $total ?></span>
+                <span class="dashboard-snapshot-total-label">in cell scope</span>
+            </div>
+            <div class="dashboard-snapshot-main">
+                <h3 class="dashboard-snapshot-h">Queue</h3>
+                <div class="dashboard-stackbar" role="img" aria-label="Queue by status">
+                    <?php if ($total < 1) : ?>
+                        <span class="dashboard-stackbar-empty">No complaints in the cell queue.</span>
+                    <?php else : ?>
+                        <?php foreach ($segs as $seg) : ?>
+                            <?php if ($seg['n'] > 0) : ?>
+                                <span class="dashboard-stackbar-seg <?= e($seg['class']) ?>" style="flex: <?= (int) $seg['n'] ?> 1 0; min-width: <?= $seg['n'] > 0 ? '8px' : '0' ?>;"></span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-            <?php endif; ?>
-        </section>
-    </div>
+                <ul class="dashboard-legend">
+                    <?php foreach ($segs as $seg) : ?>
+                        <li>
+                            <a class="dashboard-legend-link" href="<?= e(cmc_url($seg['href'])) ?>">
+                                <span class="dashboard-legend-dot <?= e($seg['class']) ?>"></span>
+                                <span class="dashboard-legend-label"><?= e($seg['label']) ?></span>
+                                <span class="dashboard-legend-count"><?= (int) $seg['n'] ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="card dashboard-recent">
+        <div class="dashboard-recent-head">
+            <h3 class="card-title">Recently updated</h3>
+            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">View all</a>
+        </div>
+        <?php if ($recent === []) : ?>
+            <p class="muted">No complaints in the cell queue.</p>
+        <?php else : ?>
+            <div class="table-wrap">
+                <table class="table table-compact">
+                    <thead>
+                        <tr>
+                            <th>Ref</th>
+                            <th>Subject</th>
+                            <th>Dept</th>
+                            <th>Status</th>
+                            <th class="th-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($recent as $r) : ?>
+                            <tr>
+                                <td><code class="dashboard-ref"><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
+                                <td><?= e((string) ($r['subject'] ?? '')) ?></td>
+                                <td class="small muted"><?= e((string) ($r['department_name'] ?? '')) ?></td>
+                                <td><span class="pill pill-soft"><?= e(cmc_complaint_status_label((string) ($r['status'] ?? ''))) ?></span></td>
+                                <td class="td-actions"><a class="btn btn-sm btn-ghost" href="<?= e(cmc_dashboard_complaint_href($r)) ?>">Open</a></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
     <?php
 } elseif ($role === 'admin') {
     $adm = cmc_dashboard_admin_complaint_stats($pdo);
     $by = $adm['by_status'];
+    $total = (int) $adm['total'];
     $recent = cmc_dashboard_recent_complaints($pdo, '1=1', [], 8);
-    $chart = [
-        'Awaiting HOD' => $by['pending_hod'],
-        'Awaiting SDE' => $by['pending_sde'],
-        'SDE approved' => $by['sde_approved'],
-        'Rejected' => $by['hod_rejected'] + $by['sde_rejected'],
+    $statusSegs = [
+        ['n' => $by['pending_hod'], 'class' => 'seg-hod', 'href' => 'complaints/index.php?status=pending_hod', 'label' => 'Awaiting HOD'],
+        ['n' => $by['pending_sde'], 'class' => 'seg-sde', 'href' => 'complaints/index.php?status=pending_sde', 'label' => 'Awaiting SDE'],
+        ['n' => $by['sde_approved'], 'class' => 'seg-approved', 'href' => 'complaints/index.php?status=sde_approved', 'label' => 'SDE approved'],
+        ['n' => $by['hod_rejected'], 'class' => 'seg-rej', 'href' => 'complaints/index.php?status=hod_rejected', 'label' => 'Rejected by HOD'],
+        ['n' => $by['sde_rejected'], 'class' => 'seg-rej-sde', 'href' => 'complaints/index.php?status=sde_rejected', 'label' => 'Rejected by SDE'],
     ];
+    $pipeline = $by['pending_hod'] + $by['pending_sde'];
     ?>
-    <div class="dashboard-welcome card">
-        <h2 class="card-title">Administration</h2>
-        <p class="muted">Manage organisations, departments, and users. Oversee complaints from the list.</p>
-        <div class="dashboard-shortcuts">
-            <a class="btn btn-primary" href="<?= e(cmc_url('admin/organisations.php')) ?>">Organisations</a>
-            <a class="btn btn-ghost" href="<?= e(cmc_url('admin/departments.php')) ?>">Departments</a>
-            <a class="btn btn-ghost" href="<?= e(cmc_url('admin/users.php')) ?>">Users</a>
-            <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">All complaints</a>
-        </div>
-    </div>
-    <div class="dashboard-stat-grid dashboard-stat-grid-4">
-        <div class="dashboard-stat">
-            <div class="dashboard-stat-value"><?= (int) $adm['total'] ?></div>
-            <div class="dashboard-stat-label">Total complaints</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-accent">
-            <div class="dashboard-stat-value"><?= $by['pending_hod'] + $by['pending_sde'] ?></div>
-            <div class="dashboard-stat-label">Open pipeline</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-success">
-            <div class="dashboard-stat-value"><?= $by['sde_approved'] ?></div>
-            <div class="dashboard-stat-label">SDE approved</div>
-        </div>
-        <div class="dashboard-stat dashboard-stat-muted">
-            <div class="dashboard-stat-value"><?= $by['hod_rejected'] + $by['sde_rejected'] ?></div>
-            <div class="dashboard-stat-label">Rejected</div>
-        </div>
-    </div>
-    <div class="grid-2">
-        <section class="card">
-            <h3 class="card-title">System-wide status mix</h3>
-            <?php
-            $cm = max($chart) ?: 1;
-            foreach ($chart as $label => $n) :
-                $w = $cm > 0 ? round(100 * $n / $cm) : 0;
-                ?>
-                <div class="dashboard-bar-row">
-                    <span class="dashboard-bar-label"><?= e($label) ?></span>
-                    <div class="dashboard-bar-track">
-                        <div class="dashboard-bar-fill" style="width: <?= (int) $w ?>%;"></div>
-                    </div>
-                    <span class="dashboard-bar-count"><?= (int) $n ?></span>
-                </div>
-            <?php endforeach; ?>
-        </section>
-        <section class="card dashboard-recent">
-            <div class="dashboard-recent-head">
-                <h3 class="card-title">Recently updated</h3>
-                <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">View all</a>
+    <section class="card dashboard-snapshot">
+        <header class="dashboard-snapshot-header">
+            <div>
+                <h2 class="dashboard-snapshot-title">Administration</h2>
+                <p class="muted dashboard-snapshot-meta">Organisations, departments, users, and system-wide complaints.</p>
             </div>
-            <?php if ($recent === []) : ?>
-                <p class="muted">No complaints yet.</p>
-            <?php else : ?>
-                <div class="table-wrap">
-                    <table class="table table-compact">
-                        <thead>
-                            <tr>
-                                <th>Ref</th>
-                                <th>Subject</th>
-                                <th>Dept</th>
-                                <th>Raised by</th>
-                                <th>Status</th>
-                                <th class="th-actions"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($recent as $r) : ?>
-                                <tr>
-                                    <td><code class="dashboard-ref"><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
-                                    <td><?= e((string) ($r['subject'] ?? '')) ?></td>
-                                    <td class="small muted"><?= e((string) ($r['department_name'] ?? '')) ?></td>
-                                    <td class="small"><?= e((string) ($r['raised_by_name'] ?? '')) ?></td>
-                                    <td><span class="pill pill-soft"><?= e(cmc_complaint_status_label((string) ($r['status'] ?? ''))) ?></span></td>
-                                    <td class="td-actions"><a class="btn btn-sm btn-ghost" href="<?= e(cmc_dashboard_complaint_href($r)) ?>">Open</a></td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
+            <div class="dashboard-snapshot-actions">
+                <a class="btn btn-primary" href="<?= e(cmc_url('admin/organisations.php')) ?>">Organisations</a>
+                <a class="btn btn-ghost" href="<?= e(cmc_url('admin/departments.php')) ?>">Departments</a>
+                <a class="btn btn-ghost" href="<?= e(cmc_url('admin/users.php')) ?>">Users</a>
+                <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">Complaints</a>
+            </div>
+        </header>
+        <div class="dashboard-snapshot-body">
+            <div class="dashboard-snapshot-total">
+                <span class="dashboard-snapshot-total-num"><?= $total ?></span>
+                <span class="dashboard-snapshot-total-label">complaints</span>
+                <?php if ($pipeline > 0) : ?>
+                    <span class="dashboard-snapshot-total-sub muted small"><?= $pipeline ?> in pipeline</span>
+                <?php endif; ?>
+            </div>
+            <div class="dashboard-snapshot-main">
+                <h3 class="dashboard-snapshot-h">Status mix</h3>
+                <div class="dashboard-stackbar" role="img" aria-label="Complaints by status">
+                    <?php if ($total < 1) : ?>
+                        <span class="dashboard-stackbar-empty">No complaints in the system yet.</span>
+                    <?php else : ?>
+                        <?php foreach ($statusSegs as $seg) : ?>
+                            <?php if ($seg['n'] > 0) : ?>
+                                <span class="dashboard-stackbar-seg <?= e($seg['class']) ?>" style="flex: <?= (int) $seg['n'] ?> 1 0; min-width: <?= $seg['n'] > 0 ? '8px' : '0' ?>;"></span>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
-            <?php endif; ?>
-        </section>
-    </div>
+                <ul class="dashboard-legend">
+                    <?php foreach ($statusSegs as $seg) : ?>
+                        <li>
+                            <a class="dashboard-legend-link" href="<?= e(cmc_url($seg['href'])) ?>">
+                                <span class="dashboard-legend-dot <?= e($seg['class']) ?>"></span>
+                                <span class="dashboard-legend-label"><?= e($seg['label']) ?></span>
+                                <span class="dashboard-legend-count"><?= (int) $seg['n'] ?></span>
+                            </a>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <section class="card dashboard-recent">
+        <div class="dashboard-recent-head">
+            <h3 class="card-title">Recently updated</h3>
+            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/index.php')) ?>">View all</a>
+        </div>
+        <?php if ($recent === []) : ?>
+            <p class="muted">No complaints yet.</p>
+        <?php else : ?>
+            <div class="table-wrap">
+                <table class="table table-compact">
+                    <thead>
+                        <tr>
+                            <th>Ref</th>
+                            <th>Subject</th>
+                            <th>Dept</th>
+                            <th>Raised by</th>
+                            <th>Status</th>
+                            <th class="th-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($recent as $r) : ?>
+                            <tr>
+                                <td><code class="dashboard-ref"><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
+                                <td><?= e((string) ($r['subject'] ?? '')) ?></td>
+                                <td class="small muted"><?= e((string) ($r['department_name'] ?? '')) ?></td>
+                                <td class="small"><?= e((string) ($r['raised_by_name'] ?? '')) ?></td>
+                                <td><span class="pill pill-soft"><?= e(cmc_complaint_status_label((string) ($r['status'] ?? ''))) ?></span></td>
+                                <td class="td-actions"><a class="btn btn-sm btn-ghost" href="<?= e(cmc_dashboard_complaint_href($r)) ?>">Open</a></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+    </section>
     <?php
 } else {
     ?>
