@@ -7,7 +7,7 @@ $user = $cmcBillingUser;
 $pdo = cmc_db();
 
 $fulfillments = $pdo->query(
-    'SELECT f.id, f.complaint_id, f.work_status, c.subject
+    'SELECT f.id, f.complaint_id, f.work_status, c.reference_code, c.subject
      FROM complaint_fulfillments f
      JOIN complaints c ON c.id = f.complaint_id
      ORDER BY f.id DESC
@@ -107,7 +107,7 @@ cmc_layout_start('Generate bill', $user);
                 <option value="">Select…</option>
                 <?php foreach ($fulfillments as $f) : ?>
                     <option value="<?= (int) $f['id'] ?>"<?= $preFid === (int) $f['id'] ? ' selected' : '' ?>>
-                        #<?= (int) $f['id'] ?> · Complaint <?= (int) $f['complaint_id'] ?> · <?= e(cmc_fulfillment_work_status_label((string) $f['work_status'])) ?> · <?= e((string) $f['subject']) ?>
+                        #<?= (int) $f['id'] ?> · <?= e((string) ($f['reference_code'] ?? '')) ?> · <?= e(cmc_fulfillment_work_status_label((string) $f['work_status'])) ?> · <?= e((string) $f['subject']) ?>
                     </option>
                 <?php endforeach; ?>
             </select>

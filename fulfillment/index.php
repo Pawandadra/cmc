@@ -7,7 +7,7 @@ $user = $cmcFulfillmentUser;
 $pdo = cmc_db();
 
 $awaiting = $pdo->query(
-    "SELECT c.id, c.subject, c.updated_at,
+    "SELECT c.id, c.reference_code, c.subject, c.updated_at,
             rb.full_name AS raised_by_name,
             o.name AS organisation_name, d.name AS department_name
      FROM complaints c
@@ -22,6 +22,7 @@ $awaiting = $pdo->query(
 
 $active = $pdo->query(
     "SELECT f.id, f.complaint_id, f.work_status, f.updated_at,
+            c.reference_code,
             c.subject,
             rb.full_name AS raised_by_name,
             o.name AS organisation_name, d.name AS department_name
@@ -37,6 +38,7 @@ $active = $pdo->query(
 
 $closed = $pdo->query(
     "SELECT f.id, f.complaint_id, f.work_status, f.updated_at,
+            c.reference_code,
             c.subject,
             rb.full_name AS raised_by_name,
             o.name AS organisation_name, d.name AS department_name
@@ -62,7 +64,7 @@ cmc_layout_start('Fulfillment work', $user);
     <table class="table">
         <thead>
             <tr>
-                <th>ID</th>
+                <th>Complaint ID</th>
                 <th>Subject</th>
                 <th>Raised by</th>
                 <th>Organisation</th>
@@ -77,7 +79,7 @@ cmc_layout_start('Fulfillment work', $user);
             <?php else : ?>
                 <?php foreach ($awaiting as $r) : ?>
                     <tr>
-                        <td class="muted"><?= (int) $r['id'] ?></td>
+                        <td class="muted"><code><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
                         <td><?= e((string) $r['subject']) ?></td>
                         <td><?= e((string) $r['raised_by_name']) ?></td>
                         <td><?= e((string) $r['organisation_name']) ?></td>
@@ -100,7 +102,7 @@ cmc_layout_start('Fulfillment work', $user);
     <table class="table">
         <thead>
             <tr>
-                <th>Complaint</th>
+                <th>Complaint ID</th>
                 <th>Subject</th>
                 <th>Raised by</th>
                 <th>Status</th>
@@ -114,7 +116,7 @@ cmc_layout_start('Fulfillment work', $user);
             <?php else : ?>
                 <?php foreach ($active as $r) : ?>
                     <tr>
-                        <td class="muted"><?= (int) $r['complaint_id'] ?></td>
+                        <td class="muted"><code><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
                         <td><?= e((string) $r['subject']) ?></td>
                         <td><?= e((string) $r['raised_by_name']) ?></td>
                         <td><span class="pill"><?= e(cmc_fulfillment_work_status_label((string) $r['work_status'])) ?></span></td>
@@ -136,7 +138,7 @@ cmc_layout_start('Fulfillment work', $user);
     <table class="table">
         <thead>
             <tr>
-                <th>Complaint</th>
+                <th>Complaint ID</th>
                 <th>Subject</th>
                 <th>Raised by</th>
                 <th>Outcome</th>
@@ -150,7 +152,7 @@ cmc_layout_start('Fulfillment work', $user);
             <?php else : ?>
                 <?php foreach ($closed as $r) : ?>
                     <tr>
-                        <td class="muted"><?= (int) $r['complaint_id'] ?></td>
+                        <td class="muted"><code><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
                         <td><?= e((string) $r['subject']) ?></td>
                         <td><?= e((string) $r['raised_by_name']) ?></td>
                         <td><?= e(cmc_fulfillment_work_status_label((string) $r['work_status'])) ?></td>

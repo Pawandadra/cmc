@@ -42,7 +42,7 @@ $heading = 'Complaints';
 $where = [];
 $params = [];
 
-$select = 'SELECT c.id, c.subject, c.status, c.created_at, c.updated_at,
+$select = 'SELECT c.id, c.reference_code, c.subject, c.status, c.created_at, c.updated_at,
        rb.full_name AS raised_by_name, rb.email AS raised_by_email,
        d.name AS department_name, o.name AS organisation_name';
 
@@ -219,7 +219,7 @@ cmc_layout_start($heading, $user);
             <?php else : ?>
                 <?php foreach ($rows as $r) : ?>
                     <tr>
-                        <td class="muted"><?= (int) $r['id'] ?></td>
+                        <td class="muted"><code><?= e((string) ($r['reference_code'] ?? '')) ?></code></td>
                         <td><?= e((string) $r['subject']) ?></td>
                         <td>
                             <?= e((string) ($r['raised_by_name'] ?? '')) ?>
@@ -234,7 +234,7 @@ cmc_layout_start($heading, $user);
                         <td><?= e(cmc_complaint_status_label((string) $r['status'])) ?></td>
                         <td class="muted"><?= e((string) $r['updated_at']) ?></td>
                         <td class="td-actions">
-                            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/view.php?id=' . (int) $r['id'])) ?>">Open</a>
+                            <a class="btn btn-sm btn-ghost" href="<?= e(cmc_url('complaints/view.php?' . (trim((string) ($r['reference_code'] ?? '')) !== '' ? 'ref=' . rawurlencode((string) $r['reference_code']) : 'id=' . (int) $r['id']))) ?>">Open</a>
                         </td>
                     </tr>
                 <?php endforeach; ?>

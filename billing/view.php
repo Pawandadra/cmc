@@ -12,7 +12,7 @@ if ($id < 1) {
 }
 
 $st = $pdo->prepare(
-    'SELECT b.*, f.complaint_id, c.subject
+    'SELECT b.*, f.complaint_id, c.reference_code, c.subject
      FROM internal_bills b
      JOIN complaint_fulfillments f ON f.id = b.fulfillment_id
      JOIN complaints c ON c.id = f.complaint_id
@@ -34,11 +34,18 @@ $lines = $pdo->prepare(
 $lines->execute([$id]);
 $rows = $lines->fetchAll();
 
+$complaintViewQs = trim((string) ($bill['reference_code'] ?? '')) !== ''
+    ? 'ref=' . rawurlencode((string) $bill['reference_code'])
+    : 'id=' . (int) $bill['complaint_id'];
+$complaintRefLabel = trim((string) ($bill['reference_code'] ?? '')) !== ''
+    ? (string) $bill['reference_code']
+    : (string) (int) $bill['complaint_id'];
+
 cmc_layout_start('Bill #' . $id, $user);
 ?>
 <div class="toolbar">
     <a class="btn btn-ghost" href="<?= e(cmc_url('billing/index.php')) ?>">← All bills</a>
-    <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/view.php?id=' . (int) $bill['complaint_id'])) ?>">Complaint <?= (int) $bill['complaint_id'] ?></a>
+    <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/view.php?' . $complaintViewQs)) ?>">Complaint <code><?= e($complaintRefLabel) ?></code></a>
 </div>
 
 <div class="card">

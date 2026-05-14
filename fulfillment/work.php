@@ -17,9 +17,12 @@ if ($c === null || !cmc_complaint_user_can_view($user, $c)) {
     http_response_code(403);
     exit('Forbidden');
 }
+$cViewQs = trim((string) ($c['reference_code'] ?? '')) !== ''
+    ? 'ref=' . rawurlencode((string) $c['reference_code'])
+    : 'id=' . $cid;
 if (($c['status'] ?? '') !== 'sde_approved') {
     cmc_flash_set('error', 'Fulfillment is only available for complaints approved by SDE.');
-    cmc_redirect('complaints/view.php?id=' . $cid);
+    cmc_redirect('complaints/view.php?' . $cViewQs);
 }
 
 $materialItems = $pdo->query(
@@ -197,12 +200,14 @@ if ($fulfillmentDataJson === false) {
 
 $fidForBilling = $fulfillment ? (int) $fulfillment['id'] : 0;
 
-cmc_layout_start('Fulfillment · Complaint ' . $cid, $user);
+$refLabel = trim((string) ($c['reference_code'] ?? '')) !== '' ? (string) $c['reference_code'] : (string) $cid;
+
+cmc_layout_start('Fulfillment · ' . $refLabel, $user);
 $fulfillmentJs = cmc_url('assets/js/fulfillment-lines.js');
 ?>
 <div class="toolbar">
     <a class="btn btn-ghost" href="<?= e(cmc_url('fulfillment/index.php')) ?>">← Fulfillment list</a>
-    <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/view.php?id=' . $cid)) ?>">Complaint <?= (int) $cid ?></a>
+    <a class="btn btn-ghost" href="<?= e(cmc_url('complaints/view.php?' . $cViewQs)) ?>">Complaint <code><?= e($refLabel) ?></code></a>
     <?php if ($fidForBilling > 0) : ?>
         <a class="btn btn-ghost" href="<?= e(cmc_url('billing/create.php?fulfillment_id=' . $fidForBilling)) ?>">Create bill</a>
     <?php endif; ?>
@@ -212,7 +217,7 @@ $fulfillmentJs = cmc_url('assets/js/fulfillment-lines.js');
     <h2 class="card-title"><?= e((string) $c['subject']) ?></h2>
     <dl class="dl-grid">
         <dt>Complaint ID</dt>
-        <dd class="muted"><?= (int) $cid ?></dd>
+        <dd class="muted"><code><?= e((string) ($c['reference_code'] ?? '')) ?></code></dd>
         <dt>Raised by</dt>
         <dd><?= e((string) $c['raised_by_name']) ?> <span class="muted">(<?= e((string) $c['raised_by_email']) ?>)</span></dd>
         <dt>Organisation / department</dt>

@@ -15,7 +15,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         cmc_redirect('complaints/create.php');
     }
     cmc_flash_set('success', 'Complaint submitted. Your HOD has been notified (in-app).');
-    cmc_redirect('complaints/view.php?id=' . $cid);
+    $st = cmc_db()->prepare('SELECT reference_code FROM complaints WHERE id = ?');
+    $st->execute([$cid]);
+    $newRef = (string) $st->fetchColumn();
+    $q = $newRef !== '' ? ('ref=' . rawurlencode($newRef)) : ('id=' . $cid);
+    cmc_redirect('complaints/view.php?' . $q);
 }
 
 cmc_layout_start('Raise complaint', $user);

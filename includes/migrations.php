@@ -10,6 +10,7 @@ function cmc_run_migrations(PDO $pdo): void
     // User-table rebuild must run before complaint tables reference `users`.
     cmc_migration_sdc_to_sde_users($pdo);
     cmc_migration_complaints_tables($pdo);
+    cmc_migration_complaints_reference_code($pdo);
     cmc_migration_inventory_tables($pdo);
     cmc_migration_inventory_drop_location_column($pdo);
     cmc_migration_complaint_fulfillment_tables($pdo);
@@ -201,6 +202,44 @@ CREATE INDEX idx_complaints_status ON complaints (status);
 CREATE INDEX idx_complaint_events_complaint ON complaint_events (complaint_id);
 SQL
     );
+}
+
+function cmc_migration_complaints_reference_code(PDO $pdo): void
+{
+    $row = $pdo->query("SELECT 1 FROM sqlite_master WHERE type='table' AND name='complaints'")->fetch();
+    if (!$row) {
+        return;
+    }
+    $cols = $pdo->query('PRAGMA table_info(complaints)')->fetchAll(PDO::FETCH_ASSOC);
+    $hasRef = false;
+    foreach ($cols as $col) {
+        if (($col['name'] ?? '') === 'reference_code') {
+            $hasRef = true;
+            break;
+        }
+    }
+    if (!$hasRef) {
+        $pdo->exec('ALTER TABLE complaints ADD COLUMN reference_code TEXT');
+    }
+
+    $pdo->beginTransaction();
+    try {
+        $ids = $pdo->query(
+            "SELECT id FROM complaints WHERE reference_code IS NULL OR TRIM(COALESCE(reference_code, '')) = ''"
+        )->fetchAll(PDO::FETCH_COLUMN);
+        foreach ($ids as $rid) {
+            $rid = (int) $rid;
+            $code = cmc_complaint_allocate_reference_code($pdo);
+            $pdo->prepare('UPDATE complaints SET reference_code = ? WHERE id = ?')->execute([$code, $rid]);
+        }
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_complaints_reference_code ON complaints (reference_code)');
+        $pdo->commit();
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
 }
 
 function cmc_migration_sdc_to_sde_users(PDO $pdo): void

@@ -38,6 +38,7 @@ CREATE INDEX idx_departments_org ON departments (organisation_id);
 
 CREATE TABLE complaints (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reference_code TEXT NOT NULL,
     organisation_id INTEGER NOT NULL REFERENCES organisations(id) ON DELETE RESTRICT,
     department_id INTEGER NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
     raised_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
@@ -73,6 +74,7 @@ CREATE TABLE complaint_events (
 CREATE INDEX idx_complaints_dept_status ON complaints (department_id, status);
 CREATE INDEX idx_complaints_raiser ON complaints (raised_by_user_id);
 CREATE INDEX idx_complaints_status ON complaints (status);
+CREATE UNIQUE INDEX idx_complaints_reference_code ON complaints (reference_code);
 CREATE INDEX idx_complaint_events_complaint ON complaint_events (complaint_id);
 
 CREATE TABLE complaint_fulfillments (

@@ -5,18 +5,40 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
 $user = cmc_require_login();
+$pdo = cmc_db();
+$refParam = trim((string) ($_GET['ref'] ?? ''));
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-if ($id < 1) {
-    http_response_code(404);
-    exit('Not found');
+
+if ($refParam !== '') {
+    $c = cmc_complaint_fetch_by_reference($pdo, $refParam);
+    if ($c === null) {
+        http_response_code(404);
+        exit('Not found');
+    }
+    if (!cmc_complaint_user_can_view($user, $c)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
+    $id = (int) $c['id'];
+} else {
+    if ($id < 1) {
+        http_response_code(404);
+        exit('Not found');
+    }
+    $c = cmc_complaint_fetch($pdo, $id);
+    if ($c === null) {
+        http_response_code(404);
+        exit('Not found');
+    }
+    if (!cmc_complaint_user_can_view($user, $c)) {
+        http_response_code(403);
+        exit('Forbidden');
+    }
 }
 
-$pdo = cmc_db();
-$c = cmc_complaint_fetch($pdo, $id);
-if ($c === null || !cmc_complaint_user_can_view($user, $c)) {
-    http_response_code(403);
-    exit('Forbidden');
-}
+$viewQuery = trim((string) ($c['reference_code'] ?? '')) !== ''
+    ? 'ref=' . rawurlencode((string) $c['reference_code'])
+    : 'id=' . $id;
 
 $canHod = cmc_complaint_hod_can_act($user, $c);
 $canSde = cmc_complaint_sde_can_act($user, $c);
@@ -27,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $comment = trim((string) ($_POST['comment'] ?? ''));
     if (strlen($comment) > 5000) {
         cmc_flash_set('error', 'Comment is too long.');
-        cmc_redirect('complaints/view.php?id=' . $id);
+        cmc_redirect('complaints/view.php?' . $viewQuery);
     }
     $commentNull = $comment === '' ? null : $comment;
 
@@ -86,15 +108,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $pdo->rollBack();
         cmc_flash_set('error', 'Could not apply the action. It may have already been processed—refresh the page.');
-        cmc_redirect('complaints/view.php?id=' . $id);
+        cmc_redirect('complaints/view.php?' . $viewQuery);
     }
 
     if (!$ok) {
         cmc_flash_set('error', 'That action is not available.');
-        cmc_redirect('complaints/view.php?id=' . $id);
+        cmc_redirect('complaints/view.php?' . $viewQuery);
     }
 
-    cmc_redirect('complaints/view.php?id=' . $id);
+    cmc_redirect('complaints/view.php?' . $viewQuery);
 }
 
 // Re-fetch after potential redirect skip
@@ -114,7 +136,9 @@ if ($user['role'] === 'sde' && ($c['status'] ?? '') === 'sde_approved') {
 $events = cmc_complaint_events($pdo, $id);
 $attachments = cmc_complaint_attachments($pdo, $id);
 
-cmc_layout_start('Complaint #' . $id, $user);
+$refDisplay = trim((string) ($c['reference_code'] ?? '')) !== '' ? (string) $c['reference_code'] : ('#' . $id);
+
+cmc_layout_start('Complaint ' . $refDisplay, $user);
 ?>
 <div class="detail-grid">
     <section class="card">
@@ -124,7 +148,7 @@ cmc_layout_start('Complaint #' . $id, $user);
         <h2 class="card-title"><?= e((string) $c['subject']) ?></h2>
         <dl class="dl-grid">
             <dt>Complaint ID</dt>
-            <dd class="muted"><?= (int) $id ?></dd>
+            <dd class="muted"><code><?= e((string) ($c['reference_code'] ?? '')) ?></code></dd>
             <dt>Raised by</dt>
             <dd><?= e((string) $c['raised_by_name']) ?> <span class="muted">(<?= e((string) $c['raised_by_email']) ?>)</span></dd>
             <dt>Organisation</dt>

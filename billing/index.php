@@ -8,7 +8,7 @@ $pdo = cmc_db();
 
 $bills = $pdo->query(
     'SELECT b.id, b.fulfillment_id, b.material_subtotal, b.labour_subtotal, b.equipment_subtotal, b.wage_adjustment, b.other_expenses, b.grand_total, b.created_at,
-            f.complaint_id, c.subject
+            f.complaint_id, c.reference_code, c.subject
      FROM internal_bills b
      JOIN complaint_fulfillments f ON f.id = b.fulfillment_id
      JOIN complaints c ON c.id = f.complaint_id
@@ -28,7 +28,7 @@ cmc_layout_start('Billing', $user);
         <thead>
             <tr>
                 <th>Bill</th>
-                <th>Complaint</th>
+                <th>Complaint ID</th>
                 <th>Fulfillment</th>
                 <th>Materials</th>
                 <th>Labour</th>
@@ -47,7 +47,7 @@ cmc_layout_start('Billing', $user);
                 <?php foreach ($bills as $b) : ?>
                     <tr>
                         <td class="muted">#<?= (int) $b['id'] ?></td>
-                        <td><?= (int) $b['complaint_id'] ?></td>
+                        <td><code><?= e((string) ($b['reference_code'] ?? '')) ?></code></td>
                         <td class="muted"><?= (int) $b['fulfillment_id'] ?></td>
                         <td><?= e(cmc_resource_format_money((float) $b['material_subtotal'])) ?></td>
                         <td><?= e(cmc_resource_format_money((float) $b['labour_subtotal'])) ?></td>

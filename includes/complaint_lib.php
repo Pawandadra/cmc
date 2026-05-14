@@ -60,8 +60,42 @@ function cmc_department_in_organisation(PDO $pdo, int $departmentId, int $organi
     return (bool) $st->fetchColumn();
 }
 
+/** Generate a new complaint ID candidate (e.g. CMP-20260506-K7X9M2). */
+function cmc_complaint_new_reference_candidate(): string
+{
+    $alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    $suffix = '';
+    $len = strlen($alphabet);
+    for ($i = 0; $i < 6; $i++) {
+        $suffix .= $alphabet[random_int(0, $len - 1)];
+    }
+
+    return 'CMP-' . gmdate('Ymd') . '-' . $suffix;
+}
+
+function cmc_complaint_reference_code_exists(PDO $pdo, string $ref): bool
+{
+    $st = $pdo->prepare('SELECT 1 FROM complaints WHERE reference_code = ? LIMIT 1');
+    $st->execute([$ref]);
+
+    return (bool) $st->fetchColumn();
+}
+
+/** Allocate a unique complaint ID string (does not insert). */
+function cmc_complaint_allocate_reference_code(PDO $pdo): string
+{
+    for ($attempt = 0; $attempt < 40; $attempt++) {
+        $ref = cmc_complaint_new_reference_candidate();
+        if (!cmc_complaint_reference_code_exists($pdo, $ref)) {
+            return $ref;
+        }
+    }
+
+    throw new RuntimeException('Could not allocate a unique complaint ID.');
+}
+
 /**
- * Case-insensitive substring match on id, subject, raiser name, raiser email (requires join alias `rb`).
+ * Case-insensitive substring match on complaint ID, numeric row id, subject, raiser name, raiser email (requires join alias `rb`).
  *
  * @return array{0: string, 1: list<string>}
  */
@@ -73,13 +107,14 @@ function cmc_complaint_search_fragment(string $q): array
     }
     $needle = mb_strtolower($q, 'UTF-8');
     $sql = '(
-        INSTR(LOWER(CAST(c.id AS TEXT)), ?) > 0
+        INSTR(LOWER(COALESCE(c.reference_code, \'\')), ?) > 0
+        OR INSTR(LOWER(CAST(c.id AS TEXT)), ?) > 0
         OR INSTR(LOWER(c.subject), ?) > 0
         OR INSTR(LOWER(rb.full_name), ?) > 0
         OR INSTR(LOWER(COALESCE(rb.email, \'\')), ?) > 0
     )';
 
-    return [$sql, [$needle, $needle, $needle, $needle]];
+    return [$sql, [$needle, $needle, $needle, $needle, $needle]];
 }
 
 /** @param array<string, mixed> $u */
@@ -162,20 +197,39 @@ function cmc_complaint_create_from_post(PDO $pdo, array $u, array $cfg): array
 
     $pdo->beginTransaction();
     try {
-        $st = $pdo->prepare(
-            'INSERT INTO complaints (organisation_id, department_id, raised_by_user_id, subject, details, location, contact_phone, status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, \'pending_hod\')'
-        );
-        $st->execute([
-            $orgId,
-            $deptId,
-            (int) $u['id'],
-            $subject,
-            $details,
-            $location,
-            $phoneVal,
-        ]);
-        $cid = (int) $pdo->lastInsertId();
+        $cid = 0;
+        for ($insTry = 0; $insTry < 12; $insTry++) {
+            $ref = cmc_complaint_allocate_reference_code($pdo);
+            try {
+                $st = $pdo->prepare(
+                    'INSERT INTO complaints (reference_code, organisation_id, department_id, raised_by_user_id, subject, details, location, contact_phone, status)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, \'pending_hod\')'
+                );
+                $st->execute([
+                    $ref,
+                    $orgId,
+                    $deptId,
+                    (int) $u['id'],
+                    $subject,
+                    $details,
+                    $location,
+                    $phoneVal,
+                ]);
+                $cid = (int) $pdo->lastInsertId();
+                break;
+            } catch (PDOException $e) {
+                $msg = $e->getMessage();
+                if (str_contains($msg, 'UNIQUE constraint failed')
+                    && str_contains($msg, 'reference_code')) {
+                    continue;
+                }
+                throw $e;
+            }
+        }
+        if ($cid < 1) {
+            $pdo->rollBack();
+            return ['Could not save the complaint. Please try again.', 0];
+        }
 
         $ev = $pdo->prepare(
             'INSERT INTO complaint_events (complaint_id, actor_user_id, event_type, comment) VALUES (?, ?, \'submitted\', NULL)'
@@ -332,6 +386,27 @@ function cmc_complaint_fetch(PDO $pdo, int $id): ?array
          WHERE c.id = ?'
     );
     $st->execute([$id]);
+    $row = $st->fetch();
+    return $row ?: null;
+}
+
+/** @return array<string, mixed>|null */
+function cmc_complaint_fetch_by_reference(PDO $pdo, string $ref): ?array
+{
+    $ref = trim($ref);
+    if ($ref === '') {
+        return null;
+    }
+    $st = $pdo->prepare(
+        'SELECT c.*, o.name AS organisation_name, d.name AS department_name,
+                rb.full_name AS raised_by_name, rb.email AS raised_by_email
+         FROM complaints c
+         JOIN organisations o ON o.id = c.organisation_id
+         JOIN departments d ON d.id = c.department_id
+         JOIN users rb ON rb.id = c.raised_by_user_id
+         WHERE UPPER(c.reference_code) = UPPER(?)'
+    );
+    $st->execute([$ref]);
     $row = $st->fetch();
     return $row ?: null;
 }
