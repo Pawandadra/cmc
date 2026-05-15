@@ -43,11 +43,20 @@ function cmc_fulfillment_work_statuses(): array
     return ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 }
 
+function cmc_fulfillment_work_status_locked(string $status): bool
+{
+    return $status === 'completed';
+}
+
 /** @return string|null error message */
 function cmc_fulfillment_set_work_status(PDO $pdo, int $complaintId, int $sdeUserId, string $workStatus): ?string
 {
     if (!in_array($workStatus, cmc_fulfillment_work_statuses(), true)) {
         return 'Invalid work status.';
+    }
+    $existing = cmc_fulfillment_by_complaint($pdo, $complaintId);
+    if ($existing !== null && cmc_fulfillment_work_status_locked((string) ($existing['work_status'] ?? ''))) {
+        return 'This fulfillment is complete and cannot be reopened or changed.';
     }
     $fid = cmc_fulfillment_get_or_create($pdo, $complaintId, $sdeUserId);
     $pdo->prepare(
