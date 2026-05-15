@@ -66,6 +66,45 @@ function cmc_resource_kind_is_pool(string $k): bool
     return $k === 'worker' || $k === 'equipment';
 }
 
+/** Workers are assigned by headcount for billing; equipment uses on-hand pool quantity. */
+function cmc_resource_pool_tracks_inventory(string $kind): bool
+{
+    return $kind === 'equipment';
+}
+
+/** Active assignments on this pool resource (all fulfillments). */
+function cmc_resource_active_assigned_total(PDO $pdo, int $resourceId): float
+{
+    $st = $pdo->prepare(
+        'SELECT COALESCE(SUM(assigned_quantity), 0) FROM resource_assignments
+         WHERE resource_id = ? AND status = \'active\''
+    );
+    $st->execute([$resourceId]);
+    return (float) $st->fetchColumn();
+}
+
+/**
+ * Quantity that may still be assigned from this pool item.
+ * Workers: optional cap when catalog quantity &gt; 0; otherwise unlimited.
+ * Equipment: on-hand quantity in inventory_items.
+ */
+function cmc_resource_pool_assignable(PDO $pdo, array $item): float
+{
+    $kind = (string) ($item['resource_kind'] ?? 'material');
+    $onHand = (float) ($item['quantity'] ?? 0);
+    if ($kind === 'worker') {
+        if ($onHand <= 1e-9) {
+            return 1e12;
+        }
+        $assigned = cmc_resource_active_assigned_total($pdo, (int) $item['id']);
+        return max(0.0, $onHand - $assigned);
+    }
+    if ($kind === 'equipment') {
+        return max(0.0, $onHand);
+    }
+    return 0.0;
+}
+
 function cmc_resource_format_qty(float $q): string
 {
     if (abs($q - round($q)) < 1e-9) {
@@ -164,16 +203,27 @@ function cmc_resource_assign_pool(PDO $pdo, int $fulfillmentId, int $resourceId,
         return 'Choose a worker or equipment resource.';
     }
 
+    $onHand = (float) ($w['quantity'] ?? 0);
+    if ($kind === 'worker' && $onHand > 1e-9) {
+        $remaining = cmc_resource_pool_assignable($pdo, $w);
+        if ($qty > $remaining + 1e-9) {
+            return 'Insufficient worker capacity (max ' . cmc_resource_format_qty($onHand) . ' in pool; '
+                . cmc_resource_format_qty($remaining) . ' still assignable).';
+        }
+    }
+
     $pdo->beginTransaction();
     try {
-        $st = $pdo->prepare(
-            'UPDATE inventory_items SET quantity = quantity - ?, updated_at = datetime(\'now\')
-             WHERE id = ? AND resource_kind IN (\'worker\', \'equipment\') AND quantity + 1e-9 >= ?'
-        );
-        $st->execute([$qty, $resourceId, $qty]);
-        if ($st->rowCount() !== 1) {
-            $pdo->rollBack();
-            return 'Insufficient quantity available.';
+        if (cmc_resource_pool_tracks_inventory($kind)) {
+            $st = $pdo->prepare(
+                'UPDATE inventory_items SET quantity = quantity - ?, updated_at = datetime(\'now\')
+                 WHERE id = ? AND resource_kind = \'equipment\' AND quantity + 1e-9 >= ?'
+            );
+            $st->execute([$qty, $resourceId, $qty]);
+            if ($st->rowCount() !== 1) {
+                $pdo->rollBack();
+                return 'Insufficient equipment available. Adjust stock under Resources or release other assignments.';
+            }
         }
 
         $ex = $pdo->prepare(
@@ -228,9 +278,12 @@ function cmc_resource_release_assignment(PDO $pdo, int $assignmentId): ?string
             'UPDATE resource_assignments SET status = \'released\', released_at = datetime(\'now\') WHERE id = ?'
         )->execute([$assignmentId]);
 
-        $pdo->prepare(
-            'UPDATE inventory_items SET quantity = quantity + ?, updated_at = datetime(\'now\') WHERE id = ?'
-        )->execute([$qty, $rid]);
+        $res = cmc_resource_fetch($pdo, $rid);
+        if ($res && cmc_resource_pool_tracks_inventory((string) ($res['resource_kind'] ?? ''))) {
+            $pdo->prepare(
+                'UPDATE inventory_items SET quantity = quantity + ?, updated_at = datetime(\'now\') WHERE id = ?'
+            )->execute([$qty, $rid]);
+        }
 
         $pdo->commit();
         return null;

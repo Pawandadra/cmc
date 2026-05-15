@@ -43,6 +43,20 @@ function cmc_fulfillment_work_statuses(): array
     return ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'];
 }
 
+/** @return string|null error message */
+function cmc_fulfillment_set_work_status(PDO $pdo, int $complaintId, int $sdeUserId, string $workStatus): ?string
+{
+    if (!in_array($workStatus, cmc_fulfillment_work_statuses(), true)) {
+        return 'Invalid work status.';
+    }
+    $fid = cmc_fulfillment_get_or_create($pdo, $complaintId, $sdeUserId);
+    $pdo->prepare(
+        'UPDATE complaint_fulfillments SET work_status = ?, updated_at = datetime(\'now\') WHERE id = ?'
+    )->execute([$workStatus, $fid]);
+
+    return null;
+}
+
 /** @return list<array<string, mixed>> */
 function cmc_fulfillment_lines(PDO $pdo, int $fulfillmentId): array
 {

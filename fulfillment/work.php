@@ -77,6 +77,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         cmc_redirect('fulfillment/work.php?complaint_id=' . $cid);
     }
 
+    if ($cmcAction === 'set_status') {
+        $workStatus = (string) ($_POST['work_status'] ?? '');
+        $err = cmc_fulfillment_set_work_status($pdo, $cid, (int) $user['id'], $workStatus);
+        if ($err !== null) {
+            cmc_flash_set('error', $err);
+        } else {
+            cmc_flash_set('success', 'Work status updated to ' . cmc_fulfillment_work_status_label($workStatus) . '.');
+        }
+        cmc_redirect('fulfillment/work.php?complaint_id=' . $cid);
+    }
+
     if ($cmcAction === 'release_pool' || $cmcAction === 'release_worker') {
         $aid = isset($_POST['assignment_id']) ? (int) $_POST['assignment_id'] : 0;
         if ($aid < 1) {
@@ -199,6 +210,8 @@ if ($fulfillmentDataJson === false) {
 }
 
 $fidForBilling = $fulfillment ? (int) $fulfillment['id'] : 0;
+$currentWorkStatus = (string) ($fulfillment['work_status'] ?? 'planning');
+$workStatusTerminal = in_array($currentWorkStatus, ['completed', 'cancelled'], true);
 
 $refLabel = trim((string) ($c['reference_code'] ?? '')) !== '' ? (string) $c['reference_code'] : (string) $cid;
 
@@ -225,6 +238,75 @@ $fulfillmentJs = cmc_url('assets/js/fulfillment-lines.js');
         <dt>Site location</dt>
         <dd><?= nl2br(e((string) $c['location'])) ?></dd>
     </dl>
+</div>
+
+<div class="card fulfillment-work-status-card">
+    <div class="fulfillment-work-status-head">
+        <div>
+            <h3 class="subsection-title" style="margin:0">Work status</h3>
+            <p class="muted small" style="margin:0.35rem 0 0">Current: <span class="pill pill-soft"><?= e(cmc_fulfillment_work_status_label($currentWorkStatus)) ?></span></p>
+        </div>
+        <?php if ($workStatusTerminal) : ?>
+            <p class="muted small" style="margin:0">This job is closed. Reopen it to continue planning or assignments.</p>
+        <?php endif; ?>
+    </div>
+    <div class="fulfillment-work-status-actions">
+        <?php if ($currentWorkStatus !== 'in_progress') : ?>
+            <form method="post" class="inline-form">
+                <?= cmc_csrf_field() ?>
+                <input type="hidden" name="cmc_action" value="set_status">
+                <input type="hidden" name="work_status" value="in_progress">
+                <button class="btn btn-primary" type="submit">Start work</button>
+            </form>
+        <?php endif; ?>
+        <?php if ($currentWorkStatus !== 'completed') : ?>
+            <form method="post" class="inline-form">
+                <?= cmc_csrf_field() ?>
+                <input type="hidden" name="cmc_action" value="set_status">
+                <input type="hidden" name="work_status" value="completed">
+                <button class="btn btn-primary" type="submit">Mark complete</button>
+            </form>
+        <?php endif; ?>
+        <?php if ($currentWorkStatus !== 'on_hold' && !$workStatusTerminal) : ?>
+            <form method="post" class="inline-form">
+                <?= cmc_csrf_field() ?>
+                <input type="hidden" name="cmc_action" value="set_status">
+                <input type="hidden" name="work_status" value="on_hold">
+                <button class="btn btn-ghost" type="submit">Put on hold</button>
+            </form>
+        <?php endif; ?>
+        <?php if ($currentWorkStatus !== 'planning' && !$workStatusTerminal) : ?>
+            <form method="post" class="inline-form">
+                <?= cmc_csrf_field() ?>
+                <input type="hidden" name="cmc_action" value="set_status">
+                <input type="hidden" name="work_status" value="planning">
+                <button class="btn btn-ghost" type="submit">Back to planning</button>
+            </form>
+        <?php endif; ?>
+        <?php if ($workStatusTerminal && $currentWorkStatus === 'completed') : ?>
+            <form method="post" class="inline-form">
+                <?= cmc_csrf_field() ?>
+                <input type="hidden" name="cmc_action" value="set_status">
+                <input type="hidden" name="work_status" value="in_progress">
+                <button class="btn btn-ghost" type="submit">Reopen (in progress)</button>
+            </form>
+        <?php elseif ($workStatusTerminal && $currentWorkStatus === 'cancelled') : ?>
+            <form method="post" class="inline-form">
+                <?= cmc_csrf_field() ?>
+                <input type="hidden" name="cmc_action" value="set_status">
+                <input type="hidden" name="work_status" value="planning">
+                <button class="btn btn-ghost" type="submit">Reopen (planning)</button>
+            </form>
+        <?php elseif ($currentWorkStatus !== 'cancelled') : ?>
+            <form method="post" class="inline-form" data-confirm="Cancel this fulfillment work?">
+                <?= cmc_csrf_field() ?>
+                <input type="hidden" name="cmc_action" value="set_status">
+                <input type="hidden" name="work_status" value="cancelled">
+                <button class="btn btn-ghost" type="submit">Cancel work</button>
+            </form>
+        <?php endif; ?>
+    </div>
+    <p class="muted small" style="margin:0.75rem 0 0">You can also change status when saving the materials plan below.</p>
 </div>
 
 <div class="card card-form" id="fulfillment-lines-root">
@@ -291,6 +373,7 @@ $fulfillmentJs = cmc_url('assets/js/fulfillment-lines.js');
 
 <div class="card card-form">
     <h3 class="subheading" style="margin-top:0">Workers and equipment</h3>
+    <p class="muted small">Workers are assigned by headcount for billing (no stock deduction). Equipment uses available pool quantity from Resources.</p>
 
     <?php if (!$poolResources) : ?>
         <p class="muted">No worker or equipment resources yet. Add them under Resources.</p>
@@ -315,9 +398,21 @@ $fulfillmentJs = cmc_url('assets/js/fulfillment-lines.js');
                                 $og = $wk === 'equipment' ? 'Equipment' : 'Workers';
                                 echo '<optgroup label="' . e($og) . '">';
                             endif;
+                            $assignable = cmc_resource_pool_assignable($pdo, $w);
+                            if ($wk === 'worker') {
+                                $onHand = (float) ($w['quantity'] ?? 0);
+                                if ($onHand <= 1e-9) {
+                                    $availLabel = 'headcount (no pool cap)';
+                                } else {
+                                    $availLabel = cmc_resource_format_qty($assignable) . ' of '
+                                        . cmc_resource_format_qty($onHand) . ' assignable';
+                                }
+                            } else {
+                                $availLabel = cmc_resource_format_qty($assignable) . ' available';
+                            }
                             ?>
                             <option value="<?= (int) $w['id'] ?>">
-                                <?= e((string) $w['name']) ?> — available <?= e(cmc_resource_format_qty((float) $w['quantity'])) ?> <?= e((string) $w['unit']) ?>
+                                <?= e((string) $w['name']) ?> — <?= e($availLabel) ?> <?= e((string) $w['unit']) ?>
                                 (₹<?= e(cmc_resource_format_money((float) ($w['unit_rate'] ?? 0))) ?>/u)
                             </option>
                         <?php endforeach; ?>
